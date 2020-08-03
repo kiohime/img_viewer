@@ -106,9 +106,15 @@ func HandleEvents() {
 		case *sdl.QuitEvent:
 			quit = true
 		case *sdl.KeyboardEvent:
+
 			if t.Keysym.Sym == sdl.K_RIGHT {
-				CreateImage()
+				if t.Type == sdl.KEYDOWN {
+					CreateImage()
+				}
 			}
+			// if t.Keysym.Sym == sdl.K_RIGHT {
+			// 	CreateImage()
+			// }
 			if t.Keysym.Sym == sdl.K_ESCAPE {
 				quit = true
 			}
