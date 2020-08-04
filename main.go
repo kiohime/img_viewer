@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"regexp"
 
 	"github.com/veandco/go-sdl2/img"
 	"github.com/veandco/go-sdl2/sdl"
@@ -17,9 +19,11 @@ var (
 	imageWidth  int32
 	imageHeight int32
 	textureImg  *sdl.Texture
-	imageName   string
 	imageError  error                           = fmt.Errorf("aaa")
 	Rescale     func(W, H int32) (int32, int32) = RescaleNone
+
+	fileCounter int      = 0
+	outCache    []string = os.Args[1:]
 )
 
 // Setup - starts SDL, creates window, pre-loads images, sets render quality
@@ -69,13 +73,46 @@ func Setup() (successful bool) {
 // 	}
 // }
 
+// ParseArgs - is for switching argument masks
+func ParseArgs(wDir int) string {
+
+	// indexes of watching direction
+	switch wDir {
+	// to right
+	case 1:
+		fileCounter++
+		if fileCounter > len(outCache) {
+			fileCounter = 1
+		}
+	// to left
+	case 2:
+		fileCounter--
+		if fileCounter < 1 {
+			fileCounter = len(outCache)
+		}
+	}
+
+	// checks masks for arguments
+	var curFile string
+	switch outCache[0] {
+	case "png":
+		outCache = ScanDir("png")
+	case "jpg":
+		outCache = ScanDir("jpg")
+	}
+
+	curFile = outCache[fileCounter-1]
+	fmt.Printf("%v/%v | %v\n", fileCounter, len(outCache), curFile)
+	return curFile
+
+}
+
 // CreateImage - creates surfaces with sorce image sizes and puts it in texture
-func CreateImage() (successful bool) {
+func CreateImage(wDir int) (successful bool) {
 	// ChangeCurrentImage()
 
-	imageName := os.Args[1]
-
-	surfaceImg, err := img.Load(imageName)
+	currentFilename := ParseArgs(wDir)
+	surfaceImg, err := img.Load(currentFilename)
 	imageError = err
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to load image: %s\n", imageError)
@@ -120,7 +157,9 @@ func HandleEvents() {
 				}
 				switch t.Keysym.Sym {
 				case sdl.K_RIGHT:
-					CreateImage()
+					CreateImage(1)
+				case sdl.K_LEFT:
+					CreateImage(2)
 				case sdl.K_ESCAPE:
 					quitEvent := sdl.QuitEvent{Type: sdl.QUIT}
 					sdl.PushEvent(&quitEvent)
@@ -158,10 +197,10 @@ func RescaleNone(w, h int32) (int32, int32) {
 }
 
 func DrawCross() {
-	renderer.SetDrawColor(0, 0, 255, 255)
+	renderer.SetDrawColor(255, 0, 0, 255)
 	renderer.DrawLine(0, 0, screenWidth, screenHeight)
-	renderer.SetDrawColor(0, 0, 255, 255)
-	renderer.DrawLine(0, 0, screenWidth, screenHeight)
+	renderer.SetDrawColor(255, 0, 0, 255)
+	renderer.DrawLine(screenWidth, 0, 0, screenHeight)
 }
 
 // Draw - renders background and puts created textures in window
@@ -215,13 +254,60 @@ func Shutdown() {
 	sdl.Quit()
 }
 
+// ###############################
+
+// ScanDir - searches files in directory by mask
+func ScanDir(mask string) []string {
+	var allFiles []string
+	var out []string
+	root := "."
+	var walkError error
+
+	// настройка сканирования данных
+	walkFunc := func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			fmt.Printf("walkfunc : %v\n", walkError)
+			walkError = err
+			return walkError
+		}
+
+		// поиск файлов среди всего
+		isFile := info.Mode().IsRegular()
+		if isFile {
+			// fmt.Printf("visited : %q\n", path)
+			allFiles = append(allFiles, path)
+		}
+		return walkError
+	}
+	// сканирование данных в переменной пути
+	fmt.Printf("start walking\n")
+	walkError = filepath.Walk(root, walkFunc)
+	// fmt.Println(walkError)
+	// fmt.Println(allFiles)
+	for i := range allFiles {
+		file := allFiles[i]
+		matched, err := regexp.MatchString(mask, file)
+		if matched {
+			out = append(out, file)
+			// fmt.Println(allFiles[i])
+		}
+		if err != nil {
+			panic(err)
+		}
+
+		fmt.Println(i, out)
+	}
+	return out
+}
+
+// ############################################
+
 func main() {
 
 	if !Setup() {
 		os.Exit(1)
 	}
-
-	CreateImage()
+	CreateImage(1)
 
 	HandleEvents()
 	Shutdown()
