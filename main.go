@@ -3,24 +3,23 @@ package main
 import (
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/veandco/go-sdl2/img"
 	"github.com/veandco/go-sdl2/sdl"
 )
 
-const screenWidth = 1024
-const screenHeight = 768
+const screenWidth = int32(1024)
+const screenHeight = int32(768)
 
 var (
 	window      *sdl.Window
-	quit        bool
-	event       sdl.Event
 	renderer    *sdl.Renderer
 	imageWidth  int32
 	imageHeight int32
 	textureImg  *sdl.Texture
 	imageName   string
+	imageError  error                           = fmt.Errorf("aaa")
+	Rescale     func(W, H int32) (int32, int32) = RescaleNone
 )
 
 // Setup - starts SDL, creates window, pre-loads images, sets render quality
@@ -31,8 +30,8 @@ func Setup() (successful bool) {
 		return false
 	}
 
-	window, err = sdl.CreateWindow("IMG Viewer", sdl.WINDOWPOS_UNDEFINED, sdl.WINDOWPOS_UNDEFINED,
-		screenWidth, screenHeight, sdl.WINDOW_SHOWN)
+	window, err = sdl.CreateWindow("IMG Viewer", 0, 0,
+		screenWidth, screenHeight, sdl.WINDOW_BORDERLESS)
 	if err != nil {
 		fmt.Fprint(os.Stderr, "Failed to create renderer: %s\n", err)
 		return false
@@ -57,28 +56,34 @@ func Setup() (successful bool) {
 	return true
 }
 
-func ChangeCurrentImage() {
-	switch imageName {
-	case "":
-		imageName = "01.png"
-	case "01.png":
-		imageName = "02.png"
-	case "02.png":
-		imageName = "03.png"
-	case "03.png":
-		imageName = "01.png"
-	}
-}
+// func ChangeCurrentImage() {
+// 	switch imageName {
+// 	case "":
+// 		imageName = "01.png"
+// 	case "01.png":
+// 		imageName = "02.png"
+// 	case "02.png":
+// 		imageName = "03.png"
+// 	case "03.png":
+// 		imageName = "01.png"
+// 	}
+// }
 
 // CreateImage - creates surfaces with sorce image sizes and puts it in texture
 func CreateImage() (successful bool) {
-	ChangeCurrentImage()
-	// Load the glorious programmer art stick figure into memory
+	// ChangeCurrentImage()
+
+	imageName := os.Args[1]
+
 	surfaceImg, err := img.Load(imageName)
+	imageError = err
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to load PNG: %s\n", err)
-		os.Exit(4)
+		fmt.Fprintf(os.Stderr, "Failed to load image: %s\n", imageError)
+		return false
 	}
+
+	// )
+	// os.Exit(4)
 
 	// This is for getting the Width and Height of surfaceImg. Once surfaceImg.Free() is called we lose the
 	// ability to get information about the image we loaded into ram
@@ -101,32 +106,75 @@ func CreateImage() (successful bool) {
 // 1. quit program on cross button
 // 2. quit program on ESC press
 func HandleEvents() {
-	for event = sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
-		switch t := event.(type) {
-		case *sdl.QuitEvent:
-			quit = true
-		case *sdl.KeyboardEvent:
-
-			if t.Keysym.Sym == sdl.K_RIGHT {
-				if t.Type == sdl.KEYDOWN {
-					CreateImage()
-				}
-			}
-			// if t.Keysym.Sym == sdl.K_RIGHT {
-			// 	CreateImage()
-			// }
-			if t.Keysym.Sym == sdl.K_ESCAPE {
+	quit := false
+	for !quit {
+		Draw()
+		for event := sdl.WaitEvent(); event != nil; event = sdl.PollEvent() {
+			switch t := event.(type) {
+			case *sdl.QuitEvent:
 				quit = true
+			case *sdl.KeyboardEvent:
+				if t.Type != sdl.KEYDOWN {
+					Rescale = RescaleNone
+					continue
+				}
+				switch t.Keysym.Sym {
+				case sdl.K_RIGHT:
+					CreateImage()
+				case sdl.K_ESCAPE:
+					quitEvent := sdl.QuitEvent{Type: sdl.QUIT}
+					sdl.PushEvent(&quitEvent)
+				case sdl.K_f:
+					Rescale = RescaleFit
+				}
 			}
 		}
 	}
 }
 
+func RescaleFit(w, h int32) (int32, int32) {
+	if screenWidth <= 0 || screenHeight <= 0 || w <= 0 || h <= 0 {
+		return RescaleNone(w, h)
+	}
+
+	imgW := float64(w)
+	imgH := float64(h)
+	scrW := float64(screenWidth)
+	scrH := float64(screenHeight)
+
+	k := scrW / imgW
+	if (imgW / imgH) < (scrW / scrH) {
+		k = scrH / imgH
+	}
+
+	scaledImageWidth := k * imgW
+	scaledImageHeight := k * imgH
+	return int32(scaledImageWidth), int32(scaledImageHeight)
+
+}
+
+func RescaleNone(w, h int32) (int32, int32) {
+	return w, h
+}
+
+func DrawCross() {
+	renderer.SetDrawColor(0, 0, 255, 255)
+	renderer.DrawLine(0, 0, screenWidth, screenHeight)
+	renderer.SetDrawColor(0, 0, 255, 255)
+	renderer.DrawLine(0, 0, screenWidth, screenHeight)
+}
+
 // Draw - renders background and puts created textures in window
 func Draw() {
-
+	defer renderer.Present()
 	renderer.SetDrawColor(255, 255, 55, 255)
 	renderer.Clear()
+
+	if imageError != nil {
+
+		DrawCross()
+		return
+	}
 
 	// Draw the first stick figure using the simpler Copy() function. First parameter is the image we want to draw on
 	// screen. Second parameter is the source sdl.Rect of what we want to draw. In this case we instead pass nil, a shortcut
@@ -148,14 +196,11 @@ func Draw() {
 	// Do you want your image looking the other way? sdl.FLIP_HORIZONTAL
 	// Do you want your image upside down? sdl.SDL_FLIP_VERTICAL
 	// Do you want your image upside down AND looking the other way? sdl.FLIP_HORIZONTAL | sdl.SDL_FLIP_VERTICAL
-	var scale int32
-	scale = 2
-	scaledImageWidth := imageWidth / scale
-	scaledImageHeight := imageHeight / scale
+	newWidth, newHeight := Rescale(imageWidth, imageHeight)
+	offsetX := (screenWidth - newWidth) / 2
+	offsetY := (screenHeight - newHeight) / 2
 
-	renderer.CopyEx(textureImg, nil, &sdl.Rect{0, 0, scaledImageWidth, scaledImageHeight}, 0, nil, sdl.FLIP_NONE)
-
-	renderer.Present()
+	renderer.CopyEx(textureImg, nil, &sdl.Rect{offsetX, offsetY, newWidth, newHeight}, 0, nil, sdl.FLIP_NONE)
 }
 
 // Shutdown - closes all process to quit program correctly
@@ -176,19 +221,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	renderer.Clear()
+	CreateImage()
 
-	if !CreateImage() {
-		os.Exit(2)
-	}
-
-	ticker := time.NewTicker(time.Second / 30)
-
-	for !quit {
-		HandleEvents()
-		Draw()
-		<-ticker.C
-
-	}
+	HandleEvents()
 	Shutdown()
 }
