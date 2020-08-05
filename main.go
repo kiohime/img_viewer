@@ -2,9 +2,9 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
-	"regexp"
 
 	"github.com/veandco/go-sdl2/img"
 	"github.com/veandco/go-sdl2/sdl"
@@ -22,8 +22,11 @@ var (
 	imageError  error                           = fmt.Errorf("aaa")
 	Rescale     func(W, H int32) (int32, int32) = RescaleNone
 
-	fileCounter int      = 0
-	outCache    []string = os.Args[1:]
+	// fileCounter int = 0
+	// outCache    []string = os.Args[1:]
+	filelist []string
+	// scanlist  []string
+	fileindex int = -1
 )
 
 // Setup - starts SDL, creates window, pre-loads images, sets render quality
@@ -60,58 +63,79 @@ func Setup() (successful bool) {
 	return true
 }
 
-// func ChangeCurrentImage() {
-// 	switch imageName {
-// 	case "":
-// 		imageName = "01.png"
-// 	case "01.png":
-// 		imageName = "02.png"
-// 	case "02.png":
-// 		imageName = "03.png"
-// 	case "03.png":
-// 		imageName = "01.png"
-// 	}
-// }
+// Shutdown - closes all process to quit program correctly
+func Shutdown() {
+	// free the texture memory
+	textureImg.Destroy()
+	// we may or may not use img.Init(), but it's good form to properly shut down the sdl_image library
+	img.Quit()
+	renderer.Destroy()
+	window.Destroy()
 
-// ParseArgs - is for switching argument masks
-func ParseArgs(wDir int) string {
-
-	// indexes of watching direction
-	switch wDir {
-	// to right
-	case 1:
-		fileCounter++
-		if fileCounter > len(outCache) {
-			fileCounter = 1
-		}
-	// to left
-	case 2:
-		fileCounter--
-		if fileCounter < 1 {
-			fileCounter = len(outCache)
-		}
-	}
-
-	// checks masks for arguments
-	var curFile string
-	switch outCache[0] {
-	case "png":
-		outCache = ScanDir("png")
-	case "jpg":
-		outCache = ScanDir("jpg")
-	}
-
-	curFile = outCache[fileCounter-1]
-	fmt.Printf("%v/%v | %v\n", fileCounter, len(outCache), curFile)
-	return curFile
-
+	sdl.Quit()
 }
 
+func ParseArgs(args []string) []string {
+	ret := []string{}
+	for _, mask := range args[1:] {
+		list, err := filepath.Glob(mask)
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		ret = append(ret, list...)
+	}
+
+	fmt.Println("##################", ret)
+	return ret
+}
+
+// // NextFile - is for switching argument masks
+// func NextFile(wDir int) string {
+
+// 	// indexes of watching direction
+// 	switch wDir {
+// 	// to right
+// 	case 1:
+// 		fileCounter++
+// 		if fileCounter > len(outCache) {
+// 			fileCounter = 1
+// 		}
+// 	// to left
+// 	case 2:
+// 		fileCounter--
+// 		if fileCounter < 1 {
+// 			fileCounter = len(outCache)
+// 		}
+// 	}
+
+// 	// checks masks for arguments
+// 	var curFile string
+
+// 	if len(outCache) == 0 {
+// 		err := fmt.Errorf("No arguments added")
+// 		panic(err)
+// 	}
+
+// 	switch outCache[0] {
+// 	case "png":
+// 		outCache = ScanDir("png")
+// 	case "jpg":
+// 		outCache = ScanDir("jpg")
+// 	}
+
+// 	curFile = outCache[fileCounter-1]
+// 	fmt.Printf("%v/%v | %v\n", fileCounter, len(outCache), curFile)
+// 	return curFile
+
+// }
+
 // CreateImage - creates surfaces with sorce image sizes and puts it in texture
-func CreateImage(wDir int) (successful bool) {
+func CreateImage(file string) (successful bool) {
 	// ChangeCurrentImage()
 
-	currentFilename := ParseArgs(wDir)
+	// currentFilename := NextFile(wDir)
+	currentFilename := file
 	surfaceImg, err := img.Load(currentFilename)
 	imageError = err
 	if err != nil {
@@ -136,6 +160,7 @@ func CreateImage(wDir int) (successful bool) {
 	}
 	// We have the image now as a texture so we no longer have need for surface. Time to let it go
 	surfaceImg.Free()
+	currentFilename = ""
 	return true
 }
 
@@ -143,28 +168,45 @@ func CreateImage(wDir int) (successful bool) {
 // 1. quit program on cross button
 // 2. quit program on ESC press
 func HandleEvents() {
+	doDraw := true
 	quit := false
+	scaleNone := true
 	for !quit {
-		Draw()
+		if doDraw {
+			Draw()
+			doDraw = false
+		}
 		for event := sdl.WaitEvent(); event != nil; event = sdl.PollEvent() {
 			switch t := event.(type) {
 			case *sdl.QuitEvent:
 				quit = true
 			case *sdl.KeyboardEvent:
 				if t.Type != sdl.KEYDOWN {
-					Rescale = RescaleNone
 					continue
 				}
+
 				switch t.Keysym.Sym {
 				case sdl.K_RIGHT:
-					CreateImage(1)
+					fmt.Println("next file")
+
+					CreateImage(getNextFile())
+					doDraw = true
 				case sdl.K_LEFT:
-					CreateImage(2)
+					fmt.Println("prev file")
+
+					CreateImage(getPrevFile())
+
+					doDraw = true
 				case sdl.K_ESCAPE:
 					quitEvent := sdl.QuitEvent{Type: sdl.QUIT}
 					sdl.PushEvent(&quitEvent)
 				case sdl.K_f:
-					Rescale = RescaleFit
+					Rescale = RescaleNone
+					scaleNone = !scaleNone
+					if !scaleNone {
+						Rescale = RescaleFit
+					}
+					doDraw = true
 				}
 			}
 		}
@@ -186,8 +228,8 @@ func RescaleFit(w, h int32) (int32, int32) {
 		k = scrH / imgH
 	}
 
-	scaledImageWidth := k * imgW
-	scaledImageHeight := k * imgH
+	scaledImageWidth := math.Round(k * imgW)
+	scaledImageHeight := math.Round(k * imgH)
 	return int32(scaledImageWidth), int32(scaledImageHeight)
 
 }
@@ -205,6 +247,8 @@ func DrawCross() {
 
 // Draw - renders background and puts created textures in window
 func Draw() {
+	fmt.Printf("draw start\n")
+
 	defer renderer.Present()
 	renderer.SetDrawColor(255, 255, 55, 255)
 	renderer.Clear()
@@ -240,64 +284,94 @@ func Draw() {
 	offsetY := (screenHeight - newHeight) / 2
 
 	renderer.CopyEx(textureImg, nil, &sdl.Rect{offsetX, offsetY, newWidth, newHeight}, 0, nil, sdl.FLIP_NONE)
-}
+	fmt.Printf("draw end\n")
 
-// Shutdown - closes all process to quit program correctly
-func Shutdown() {
-	// free the texture memory
-	textureImg.Destroy()
-	// we may or may not use img.Init(), but it's good form to properly shut down the sdl_image library
-	img.Quit()
-	renderer.Destroy()
-	window.Destroy()
-
-	sdl.Quit()
 }
 
 // ###############################
 
-// ScanDir - searches files in directory by mask
-func ScanDir(mask string) []string {
-	var allFiles []string
-	var out []string
-	root := "."
-	var walkError error
+// // ScanDir - searches files in directory by mask
+// func ScanDir(fl []string) []string {
+// 	fmt.Printf("scan start\n")
+// 	fileindex = 0
+// 	fmt.Println("change file index for scanning - ", fl[fileindex])
+// 	var allFiles []string
+// 	var out []string
+// 	root := "."
+// 	var walkError error
 
-	// настройка сканирования данных
-	walkFunc := func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			fmt.Printf("walkfunc : %v\n", walkError)
-			walkError = err
-			return walkError
-		}
+// 	// настройка сканирования данных
+// 	walkFunc := func(path string, info os.FileInfo, err error) error {
+// 		if err != nil {
+// 			fmt.Printf("walkfunc : %v\n", walkError)
+// 			walkError = err
+// 			return walkError
+// 		}
 
-		// поиск файлов среди всего
-		isFile := info.Mode().IsRegular()
-		if isFile {
-			// fmt.Printf("visited : %q\n", path)
-			allFiles = append(allFiles, path)
-		}
-		return walkError
+// 		// поиск файлов среди всего
+// 		isFile := info.Mode().IsRegular()
+// 		if isFile {
+// 			// fmt.Printf("visited : %q\n", path)
+// 			allFiles = append(allFiles, path)
+// 		}
+// 		return walkError
+// 	}
+// 	// сканирование данных в переменной пути
+// 	fmt.Printf("walking start\n")
+// 	walkError = filepath.Walk(root, walkFunc)
+// 	fmt.Printf("walking end\n")
+// 	// fmt.Println(walkError)
+// 	// fmt.Println(allFiles)
+// 	fmt.Printf("append start\n")
+
+// 	for i := range allFiles {
+// 		file := allFiles[i]
+// 		matched, err := regexp.MatchString(fl[fileindex], file)
+// 		if matched {
+// 			out = append(out, file)
+// 			// fmt.Println(allFiles[i])
+// 		}
+
+// 		if err != nil {
+// 			fmt.Println("Failed to match string by mask")
+// 			panic(err)
+// 		}
+
+// 		fmt.Println(i, out)
+// 	}
+// 	fmt.Printf("append end\n")
+// 	fmt.Printf("scan end\n")
+
+// 	return out
+// }
+
+func getCurFile() string {
+	if fileindex == -1 {
+		fileindex = 0
 	}
-	// сканирование данных в переменной пути
-	fmt.Printf("start walking\n")
-	walkError = filepath.Walk(root, walkFunc)
-	// fmt.Println(walkError)
-	// fmt.Println(allFiles)
-	for i := range allFiles {
-		file := allFiles[i]
-		matched, err := regexp.MatchString(mask, file)
-		if matched {
-			out = append(out, file)
-			// fmt.Println(allFiles[i])
-		}
-		if err != nil {
-			panic(err)
-		}
-
-		fmt.Println(i, out)
+	if fileindex > len(filelist)-1 {
+		fileindex = -1
 	}
-	return out
+	ret := ""
+	if fileindex != -1 {
+		ret = filelist[fileindex]
+	}
+	fmt.Printf("%v/%v | %v\n", fileindex+1, len(filelist), ret)
+	return ret
+}
+func getNextFile() string {
+	fileindex++
+	if fileindex > len(filelist)-1 {
+		fileindex = 0
+	}
+	return getCurFile()
+}
+func getPrevFile() string {
+	fileindex--
+	if fileindex < 0 {
+		fileindex = len(filelist) - 1
+	}
+	return getCurFile()
 }
 
 // ############################################
@@ -307,7 +381,10 @@ func main() {
 	if !Setup() {
 		os.Exit(1)
 	}
-	CreateImage(1)
+	filelist = ParseArgs(os.Args)
+	// scanlist = ScanDir(filelist)
+
+	CreateImage(getCurFile())
 
 	HandleEvents()
 	Shutdown()
