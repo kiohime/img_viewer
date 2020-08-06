@@ -5,6 +5,8 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 
 	"github.com/veandco/go-sdl2/img"
 	"github.com/veandco/go-sdl2/sdl"
@@ -26,7 +28,8 @@ var (
 	// outCache    []string = os.Args[1:]
 	filelist []string
 	// scanlist  []string
-	fileindex int = -1
+	fileindex   int = -1
+	defaultMask     = "*.png;*.jpg;*.jpeg;*.ico;*.bmp;*.cur;*.pnm;*.xpm;*.lbm;*.pcx;*.gof;*.tga;*.tiff;*.xv;*.ppm;*.pgm;*.pbm;*.iff;*.ilbmo"
 )
 
 // Setup - starts SDL, creates window, pre-loads images, sets render quality
@@ -75,60 +78,103 @@ func Shutdown() {
 	sdl.Quit()
 }
 
-func ParseArgs(args []string) []string {
-	ret := []string{}
-	for _, mask := range args[1:] {
-		list, err := filepath.Glob(mask)
-		if err != nil {
-			fmt.Println(err)
-		}
-
-		ret = append(ret, list...)
-	}
-
-	fmt.Println("##################", ret)
-	return ret
+func Sobaka() {
+	fmt.Println("Woof-woof")
 }
 
-// // NextFile - is for switching argument masks
-// func NextFile(wDir int) string {
+func CustomGlob(glob string) ([]string, []string) {
+	argList := strings.Split(glob, ";")
+	ret := []string{}
+	errList := []string{}
+	dupmap := map[string]int{}
+	for _, s := range argList {
+		searchList, err := filepath.Glob(s)
+		if err != nil {
+			errList = append(errList, err.Error())
+			continue
+		}
+		for _, filename := range searchList {
+			val := dupmap[filename]
+			if val != 0 {
+				continue
+			}
+			ret = append(ret, filename)
+			dupmap[filename] = 1
 
-// 	// indexes of watching direction
-// 	switch wDir {
-// 	// to right
-// 	case 1:
-// 		fileCounter++
-// 		if fileCounter > len(outCache) {
-// 			fileCounter = 1
-// 		}
-// 	// to left
-// 	case 2:
-// 		fileCounter--
-// 		if fileCounter < 1 {
-// 			fileCounter = len(outCache)
-// 		}
-// 	}
+		}
+		// newName := retMap[searchList]
 
-// 	// checks masks for arguments
-// 	var curFile string
+		// for _, a := range searchList {
+		// 	newName := retMap[a]
+		// 	fmt.Println(newName)
 
-// 	if len(outCache) == 0 {
-// 		err := fmt.Errorf("No arguments added")
-// 		panic(err)
-// 	}
+		// }
 
-// 	switch outCache[0] {
-// 	case "png":
-// 		outCache = ScanDir("png")
-// 	case "jpg":
-// 		outCache = ScanDir("jpg")
-// 	}
+		fmt.Println("ret is", ret)
+		fmt.Println("############")
+	}
 
-// 	curFile = outCache[fileCounter-1]
-// 	fmt.Printf("%v/%v | %v\n", fileCounter, len(outCache), curFile)
-// 	return curFile
+	if len(errList) > 0 {
+		errList = nil
+	}
 
-// }
+	return ret, errList
+}
+
+func ParseArgs(args []string) []string {
+	ret := []string{}
+	// noFlags := true
+	// CustomFlag := false
+	doSort := false
+	maskList := []string{}
+	// isDefaultFilterMode := true
+	// es := 0
+	errors := []string{}
+	for _, arg := range args[1:] {
+		customFlag := strings.HasPrefix(arg, "-")
+		if customFlag {
+			fmt.Println(arg, "is custom flag")
+			// filters = append(filters, arg)
+			switch arg {
+			default:
+				errors = append(errors, fmt.Sprintf("Unsupported argument %v", arg))
+				continue
+			case "-all":
+				arg = defaultMask
+			case "-sort":
+				doSort = true
+				continue
+			case "-sobaka":
+				fmt.Println(arg, "is fine")
+				Sobaka()
+				continue
+			}
+		}
+		maskList = append(maskList, arg)
+	}
+
+	if len(maskList) == 0 {
+		maskList = append(maskList, defaultMask)
+	}
+
+	errList := []string{}
+	ret, errList = CustomGlob(strings.Join(maskList, ";"))
+	errors = append(errors, errList...)
+
+	if len(errors) > 0 {
+		for _, s := range errors {
+			fmt.Println(s)
+		}
+		os.Exit(2)
+	}
+
+	if doSort {
+		fmt.Println(doSort)
+		sort.Strings(ret)
+	}
+
+	return ret
+}
 
 // CreateImage - creates surfaces with sorce image sizes and puts it in texture
 func CreateImage(file string) (successful bool) {
@@ -289,61 +335,6 @@ func Draw() {
 }
 
 // ###############################
-
-// // ScanDir - searches files in directory by mask
-// func ScanDir(fl []string) []string {
-// 	fmt.Printf("scan start\n")
-// 	fileindex = 0
-// 	fmt.Println("change file index for scanning - ", fl[fileindex])
-// 	var allFiles []string
-// 	var out []string
-// 	root := "."
-// 	var walkError error
-
-// 	// настройка сканирования данных
-// 	walkFunc := func(path string, info os.FileInfo, err error) error {
-// 		if err != nil {
-// 			fmt.Printf("walkfunc : %v\n", walkError)
-// 			walkError = err
-// 			return walkError
-// 		}
-
-// 		// поиск файлов среди всего
-// 		isFile := info.Mode().IsRegular()
-// 		if isFile {
-// 			// fmt.Printf("visited : %q\n", path)
-// 			allFiles = append(allFiles, path)
-// 		}
-// 		return walkError
-// 	}
-// 	// сканирование данных в переменной пути
-// 	fmt.Printf("walking start\n")
-// 	walkError = filepath.Walk(root, walkFunc)
-// 	fmt.Printf("walking end\n")
-// 	// fmt.Println(walkError)
-// 	// fmt.Println(allFiles)
-// 	fmt.Printf("append start\n")
-
-// 	for i := range allFiles {
-// 		file := allFiles[i]
-// 		matched, err := regexp.MatchString(fl[fileindex], file)
-// 		if matched {
-// 			out = append(out, file)
-// 			// fmt.Println(allFiles[i])
-// 		}
-
-// 		if err != nil {
-// 			fmt.Println("Failed to match string by mask")
-// 			panic(err)
-// 		}
-
-// 		fmt.Println(i, out)
-// 	}
-// 	fmt.Printf("append end\n")
-// 	fmt.Printf("scan end\n")
-
-// 	return out
-// }
 
 func getCurFile() string {
 	if fileindex == -1 {
