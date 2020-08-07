@@ -14,6 +14,10 @@ import (
 
 const screenWidth = int32(1024)
 const screenHeight = int32(768)
+const windowPositionX = int32(200)
+const windowPositionY = int32(50)
+const defaultMask = "*.png;*.jpg;*.jpeg;*.ico;*.bmp;*.cur;*.pnm;*.xpm;*.lbm;*.pcx;*.gof;*.tga;*.tiff;*.xv;*.ppm;*.pgm;*.pbm;*.iff;*.ilbmo"
+const defaultColor = "grey"
 
 var (
 	window      *sdl.Window
@@ -28,8 +32,9 @@ var (
 	// outCache    []string = os.Args[1:]
 	filelist []string
 	// scanlist  []string
-	fileindex   int = -1
-	defaultMask     = "*.png;*.jpg;*.jpeg;*.ico;*.bmp;*.cur;*.pnm;*.xpm;*.lbm;*.pcx;*.gof;*.tga;*.tiff;*.xv;*.ppm;*.pgm;*.pbm;*.iff;*.ilbmo"
+	fileindex       int = -1
+	curZalivkaColor     = defaultColor
+	curBgColor          = defaultColor
 )
 
 // Setup - starts SDL, creates window, pre-loads images, sets render quality
@@ -40,7 +45,7 @@ func Setup() (successful bool) {
 		return false
 	}
 
-	window, err = sdl.CreateWindow("IMG Viewer", 0, 0,
+	window, err = sdl.CreateWindow("IMG Viewer", windowPositionX, windowPositionY,
 		screenWidth, screenHeight, sdl.WINDOW_BORDERLESS)
 	if err != nil {
 		fmt.Fprint(os.Stderr, "Failed to create renderer: %s\n", err)
@@ -87,30 +92,28 @@ func CustomGlob(glob string) ([]string, []string) {
 	ret := []string{}
 	errList := []string{}
 	dupmap := map[string]int{}
+	dupIndex := 0
 	for _, s := range argList {
 		searchList, err := filepath.Glob(s)
 		if err != nil {
 			errList = append(errList, err.Error())
 			continue
 		}
+
 		for _, filename := range searchList {
+
 			val := dupmap[filename]
 			if val != 0 {
 				continue
 			}
+			dupIndex++
 			ret = append(ret, filename)
-			dupmap[filename] = 1
+			dupmap[filename] = dupIndex
 
 		}
-		// newName := retMap[searchList]
+		// fmt.Println("dupmap is", dupmap)
 
-		// for _, a := range searchList {
-		// 	newName := retMap[a]
-		// 	fmt.Println(newName)
-
-		// }
-
-		fmt.Println("ret is", ret)
+		// fmt.Println("ret is", ret)
 		fmt.Println("############")
 	}
 
@@ -127,16 +130,22 @@ func ParseArgs(args []string) []string {
 	// CustomFlag := false
 	doSort := false
 	maskList := []string{}
+	filePosName := ""
 	// isDefaultFilterMode := true
 	// es := 0
 	errors := []string{}
-	for _, arg := range args[1:] {
+	for i, arg := range args[1:] {
+		fmt.Println(args[i+1])
 		customFlag := strings.HasPrefix(arg, "-")
 		if customFlag {
 			fmt.Println(arg, "is custom flag")
 			// filters = append(filters, arg)
 			switch arg {
 			default:
+				if strings.HasPrefix(arg, "-x:") {
+					filePosName = strings.TrimPrefix(arg, "-x:")
+					continue
+				}
 				errors = append(errors, fmt.Sprintf("Unsupported argument %v", arg))
 				continue
 			case "-all":
@@ -171,6 +180,13 @@ func ParseArgs(args []string) []string {
 	if doSort {
 		fmt.Println(doSort)
 		sort.Strings(ret)
+	}
+	if filePosName != "" {
+		for i, name := range ret {
+			if name == filePosName {
+				fileindex = i
+			}
+		}
 	}
 
 	return ret
@@ -217,6 +233,7 @@ func HandleEvents() {
 	doDraw := true
 	quit := false
 	scaleNone := true
+	modifers := false
 	for !quit {
 		if doDraw {
 			Draw()
@@ -227,6 +244,15 @@ func HandleEvents() {
 			case *sdl.QuitEvent:
 				quit = true
 			case *sdl.KeyboardEvent:
+				switch t.Keysym.Sym {
+				case sdl.K_LALT, sdl.K_RALT, sdl.K_LSHIFT, sdl.K_RSHIFT, sdl.K_LCTRL, sdl.K_RCTRL:
+					modifers = false
+					if t.Type == sdl.KEYDOWN {
+						modifers = true
+						continue
+					}
+				}
+
 				if t.Type != sdl.KEYDOWN {
 					continue
 				}
@@ -234,14 +260,11 @@ func HandleEvents() {
 				switch t.Keysym.Sym {
 				case sdl.K_RIGHT:
 					fmt.Println("next file")
-
 					CreateImage(getNextFile())
 					doDraw = true
 				case sdl.K_LEFT:
 					fmt.Println("prev file")
-
 					CreateImage(getPrevFile())
-
 					doDraw = true
 				case sdl.K_ESCAPE:
 					quitEvent := sdl.QuitEvent{Type: sdl.QUIT}
@@ -253,6 +276,37 @@ func HandleEvents() {
 						Rescale = RescaleFit
 					}
 					doDraw = true
+				case sdl.K_1:
+
+					if !modifers {
+						curZalivkaColor = "grey"
+					} else {
+						curBgColor = "grey"
+					}
+					doDraw = true
+				case sdl.K_2:
+					if !modifers {
+						curZalivkaColor = "red"
+					} else {
+						curBgColor = "red"
+					}
+					doDraw = true
+				case sdl.K_3:
+					if !modifers {
+						curZalivkaColor = "green"
+					} else {
+						curBgColor = "green"
+					}
+					doDraw = true
+					// case sdl.K_6:
+					// 	curBgColor = "grey"
+					// 	doDraw = true
+					// case sdl.K_7:
+					// 	curBgColor = "red"
+					// 	doDraw = true
+					// case sdl.K_8:
+					// 	curBgColor = "green"
+					// 	doDraw = true
 				}
 			}
 		}
@@ -291,16 +345,62 @@ func DrawCross() {
 	renderer.DrawLine(screenWidth, 0, 0, screenHeight)
 }
 
+func DrawZalivka() {
+	err := SetColor(curZalivkaColor)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func DrawBackground(oX int32, oY int32, rW int32, rH int32) {
+
+	err := SetColor(curBgColor)
+	if err != nil {
+		panic(err)
+	}
+	// renderer.DrawRect(&sdl.Rect{0, 0, 100, 100})
+	renderer.FillRect(&sdl.Rect{oX, oY, rW, rH})
+
+	renderer.SetDrawColor(255, 50, 50, 100)
+	renderer.FillRect(&sdl.Rect{0, 0, 100, 100})
+	// renderer.Clear()
+}
+
+func SetColor(clr string) error {
+	var err error
+
+	if clr == "" {
+		err = fmt.Errorf("no color selected")
+		return err
+	}
+
+	switch clr {
+	case "green":
+		err = renderer.SetDrawColor(50, 255, 50, 255)
+	case "red":
+		err = renderer.SetDrawColor(255, 50, 50, 255)
+	case "grey":
+		err = renderer.SetDrawColor(100, 100, 100, 255)
+	}
+	fmt.Println("color is", clr)
+	return err
+}
+
 // Draw - renders background and puts created textures in window
 func Draw() {
 	fmt.Printf("draw start\n")
-
 	defer renderer.Present()
-	renderer.SetDrawColor(255, 255, 55, 255)
+
+	newWidth, newHeight := Rescale(imageWidth, imageHeight)
+	offsetX := (screenWidth - newWidth) / 2
+	offsetY := (screenHeight - newHeight) / 2
+
+	// renderer.Clear()
+	DrawZalivka()
 	renderer.Clear()
+	DrawBackground(offsetX, offsetY, newWidth, newHeight)
 
 	if imageError != nil {
-
 		DrawCross()
 		return
 	}
@@ -325,9 +425,6 @@ func Draw() {
 	// Do you want your image looking the other way? sdl.FLIP_HORIZONTAL
 	// Do you want your image upside down? sdl.SDL_FLIP_VERTICAL
 	// Do you want your image upside down AND looking the other way? sdl.FLIP_HORIZONTAL | sdl.SDL_FLIP_VERTICAL
-	newWidth, newHeight := Rescale(imageWidth, imageHeight)
-	offsetX := (screenWidth - newWidth) / 2
-	offsetY := (screenHeight - newHeight) / 2
 
 	renderer.CopyEx(textureImg, nil, &sdl.Rect{offsetX, offsetY, newWidth, newHeight}, 0, nil, sdl.FLIP_NONE)
 	fmt.Printf("draw end\n")
@@ -374,7 +471,11 @@ func main() {
 	}
 	filelist = ParseArgs(os.Args)
 	// scanlist = ScanDir(filelist)
-
+	err := SetColor(defaultColor)
+	if err != nil {
+		fmt.Println("no background color")
+		panic(err)
+	}
 	CreateImage(getCurFile())
 
 	HandleEvents()
