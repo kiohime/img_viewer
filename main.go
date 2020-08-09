@@ -12,8 +12,8 @@ import (
 	"github.com/veandco/go-sdl2/sdl"
 )
 
-const screenWidth = int32(1024)
-const screenHeight = int32(768)
+const screenWidth = int32(1025)
+const screenHeight = int32(769)
 const windowPositionX = int32(200)
 const windowPositionY = int32(50)
 const defaultMask = "*.png;*.jpg;*.jpeg;*.ico;*.bmp;*.cur;*.pnm;*.xpm;*.lbm;*.pcx;*.gof;*.tga;*.tiff;*.xv;*.ppm;*.pgm;*.pbm;*.iff;*.ilbmo"
@@ -32,9 +32,12 @@ var (
 	// outCache    []string = os.Args[1:]
 	filelist []string
 	// scanlist  []string
-	fileindex       int = -1
-	curZalivkaColor     = defaultColor
-	curBgColor          = defaultColor
+	fileindex            int = -1
+	curZalivkaColor          = defaultColor
+	curBgColor               = defaultColor
+	isZalikaCheckerBoard     = false
+	isBgCheckerBoard         = false
+	wantChecker              = false
 )
 
 // Setup - starts SDL, creates window, pre-loads images, sets render quality
@@ -194,9 +197,7 @@ func ParseArgs(args []string) []string {
 
 // CreateImage - creates surfaces with sorce image sizes and puts it in texture
 func CreateImage(file string) (successful bool) {
-	// ChangeCurrentImage()
 
-	// currentFilename := NextFile(wDir)
 	currentFilename := file
 	surfaceImg, err := img.Load(currentFilename)
 	imageError = err
@@ -204,9 +205,6 @@ func CreateImage(file string) (successful bool) {
 		fmt.Fprintf(os.Stderr, "Failed to load image: %s\n", imageError)
 		return false
 	}
-
-	// )
-	// os.Exit(4)
 
 	// This is for getting the Width and Height of surfaceImg. Once surfaceImg.Free() is called we lose the
 	// ability to get information about the image we loaded into ram
@@ -350,6 +348,8 @@ func DrawZalivka() {
 	if err != nil {
 		panic(err)
 	}
+	// DrawCheckerboard(0, 0, screenWidth, screenHeight)
+	renderer.Clear()
 }
 
 func DrawBackground(oX int32, oY int32, rW int32, rH int32) {
@@ -359,11 +359,54 @@ func DrawBackground(oX int32, oY int32, rW int32, rH int32) {
 		panic(err)
 	}
 	// renderer.DrawRect(&sdl.Rect{0, 0, 100, 100})
+	fmt.Println("bg startX", oX)
+	fmt.Println("bg startY", oY)
+	fmt.Println("bg width", rW)
+	fmt.Println("bg height", rH)
 	renderer.FillRect(&sdl.Rect{oX, oY, rW, rH})
 
-	renderer.SetDrawColor(255, 50, 50, 100)
-	renderer.FillRect(&sdl.Rect{0, 0, 100, 100})
 	// renderer.Clear()
+}
+
+func DrawCheckerboard(startX int32, startY int32, rW int32, rH int32) {
+
+	renderer.SetDrawColor(255, 50, 255, 100)
+
+	newPosX := int32(0)
+	newPosY := int32(0)
+	fmt.Println("checker startX", startX)
+	fmt.Println("checker startY", startY)
+	fmt.Println("checker width", rW)
+	fmt.Println("checker height", rH)
+
+	squareSize := int32(10)
+
+	chetCounter := 0
+
+	// начать строку
+	for stepY := squareSize; newPosY <= rH; newPosY = newPosY + stepY {
+		fmt.Println("newPosX", newPosX)
+		fmt.Println("newPosY", newPosY)
+		fmt.Println("chetCounter", chetCounter)
+
+		if chetCounter == 0 {
+			newPosX = 0
+			chetCounter++
+		} else {
+			newPosX = 0 + squareSize
+			chetCounter--
+		}
+
+		for stepX := squareSize * 2; newPosX <= rW; newPosX = newPosX + stepX {
+			fmt.Println("newPosX", newPosX)
+			fmt.Println("newPosY", newPosY)
+			renderer.FillRect(&sdl.Rect{newPosX + startX, newPosY + startY, squareSize, squareSize})
+			fmt.Println("##end raw##")
+
+		}
+
+		// fmt.Println("chetCounter", chetCounter)
+	}
 }
 
 func SetColor(clr string) error {
@@ -392,13 +435,20 @@ func Draw() {
 	defer renderer.Present()
 
 	newWidth, newHeight := Rescale(imageWidth, imageHeight)
+	fmt.Println("image width", imageWidth)
+	fmt.Println("image height", imageHeight)
+	fmt.Println("scaled width", newWidth)
+	fmt.Println("scaled height", newWidth)
+
 	offsetX := (screenWidth - newWidth) / 2
 	offsetY := (screenHeight - newHeight) / 2
 
 	// renderer.Clear()
 	DrawZalivka()
-	renderer.Clear()
+	// DrawCheckerboard(0, 0, screenWidth, screenHeight)
+
 	DrawBackground(offsetX, offsetY, newWidth, newHeight)
+	DrawCheckerboard(offsetX, offsetY, newWidth, newHeight)
 
 	if imageError != nil {
 		DrawCross()
