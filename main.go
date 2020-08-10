@@ -20,24 +20,27 @@ const defaultMask = "*.png;*.jpg;*.jpeg;*.ico;*.bmp;*.cur;*.pnm;*.xpm;*.lbm;*.pc
 const defaultColor = "grey"
 
 var (
-	window      *sdl.Window
-	renderer    *sdl.Renderer
-	imageWidth  int32
-	imageHeight int32
-	textureImg  *sdl.Texture
-	imageError  error                           = fmt.Errorf("aaa")
-	Rescale     func(W, H int32) (int32, int32) = RescaleNone
+	window              *sdl.Window
+	renderer            *sdl.Renderer
+	imageWidth          int32
+	imageHeight         int32
+	textureImg          *sdl.Texture
+	textureCheckerboard *sdl.Texture
+	imageError          error                           = fmt.Errorf("aaa")
+	Rescale             func(W, H int32) (int32, int32) = RescaleNone
 
 	// fileCounter int = 0
 	// outCache    []string = os.Args[1:]
 	filelist []string
 	// scanlist  []string
-	fileindex            int = -1
-	curZalivkaColor          = defaultColor
-	curBgColor               = defaultColor
-	isZalikaCheckerBoard     = false
-	isBgCheckerBoard         = false
-	wantChecker              = false
+	fileindex       int    = -1
+	curZalivkaColor        = defaultColor
+	curBgColor             = defaultColor
+	patternMode            = 0
+	zalivkaChB             = false
+	bgChB                  = false
+	patternZalivka  string = "red"
+	patternBg       string = "green"
 )
 
 // Setup - starts SDL, creates window, pre-loads images, sets render quality
@@ -277,26 +280,26 @@ func HandleEvents() {
 				case sdl.K_1:
 
 					if !modifers {
-						curZalivkaColor = "grey"
+						patternZalivka = "checker"
 					} else {
-						curBgColor = "grey"
+						patternBg = "checker"
 					}
 					doDraw = true
 				case sdl.K_2:
 					if !modifers {
-						curZalivkaColor = "red"
+						patternZalivka = "red"
 					} else {
-						curBgColor = "red"
+						patternBg = "red"
 					}
 					doDraw = true
 				case sdl.K_3:
 					if !modifers {
-						curZalivkaColor = "green"
+						patternZalivka = "green"
 					} else {
-						curBgColor = "green"
+						patternBg = "green"
 					}
 					doDraw = true
-					// case sdl.K_6:
+					// case sdl.K_6:123232
 					// 	curBgColor = "grey"
 					// 	doDraw = true
 					// case sdl.K_7:
@@ -304,6 +307,17 @@ func HandleEvents() {
 					// 	doDraw = true
 					// case sdl.K_8:
 					// 	curBgColor = "green"
+					// 	doDraw = true
+					// case sdl.K_4:
+					// 	if !modifers {
+
+					// 	} else {
+					// 		curBgColor = "green"
+					// 	}
+					// 	zalivkaChB = true
+					// 	doDraw = true
+					// case sdl.K_5:
+					// 	bgChB = true
 					// 	doDraw = true
 				}
 			}
@@ -343,51 +357,45 @@ func DrawCross() {
 	renderer.DrawLine(screenWidth, 0, 0, screenHeight)
 }
 
-func DrawZalivka() {
-	err := SetColor(curZalivkaColor)
-	if err != nil {
-		panic(err)
+func DrawPattern(name string) {
+	// whatColor := ""
+	switch name {
+	case "red":
+		DrawBlank(255, 0, 0)
+	case "green":
+		DrawBlank(0, 255, 0)
+	case "checker":
+		c1 := sdl.Color{100, 100, 100, 255}
+		c2 := sdl.Color{200, 200, 200, 255}
+		DrawCheckerboard(c1, c2)
 	}
-	// DrawCheckerboard(0, 0, screenWidth, screenHeight)
-	renderer.Clear()
+
 }
 
-func DrawBackground(oX int32, oY int32, rW int32, rH int32) {
-
-	err := SetColor(curBgColor)
-	if err != nil {
-		panic(err)
-	}
-	// renderer.DrawRect(&sdl.Rect{0, 0, 100, 100})
-	fmt.Println("bg startX", oX)
-	fmt.Println("bg startY", oY)
-	fmt.Println("bg width", rW)
-	fmt.Println("bg height", rH)
-	renderer.FillRect(&sdl.Rect{oX, oY, rW, rH})
-
-	// renderer.Clear()
+func DrawBlank(r, g, b uint8) {
+	renderer.SetDrawColor(r, g, b, 255)
+	renderer.FillRect(&sdl.Rect{0, 0, screenWidth, screenWidth})
 }
 
-func DrawCheckerboard(startX int32, startY int32, rW int32, rH int32) {
+func DrawCheckerboard(color1, color2 sdl.Color) {
+	// renderer.SetClipRect(&sdl.Rect{offsetX, offsetY, newWidth, newHeight})
 
-	renderer.SetDrawColor(255, 50, 255, 100)
+	renderer.SetDrawColor(color1.R, color1.G, color1.B, 255)
+	renderer.FillRect(&sdl.Rect{0, 0, screenWidth, screenHeight})
+
+	renderer.SetDrawColor(color2.R, color2.G, color2.B, 255)
 
 	newPosX := int32(0)
 	newPosY := int32(0)
-	fmt.Println("checker startX", startX)
-	fmt.Println("checker startY", startY)
-	fmt.Println("checker width", rW)
-	fmt.Println("checker height", rH)
 
-	squareSize := int32(10)
+	squareSize := int32(8)
 
 	chetCounter := 0
-
 	// начать строку
-	for stepY := squareSize; newPosY <= rH; newPosY = newPosY + stepY {
-		fmt.Println("newPosX", newPosX)
-		fmt.Println("newPosY", newPosY)
-		fmt.Println("chetCounter", chetCounter)
+	for stepY := squareSize; newPosY <= screenWidth; newPosY = newPosY + stepY {
+		// fmt.Println("newPosX", newPosX)
+		// fmt.Println("newPosY", newPosY)
+		// fmt.Println("chetCounter", chetCounter)
 
 		if chetCounter == 0 {
 			newPosX = 0
@@ -396,16 +404,12 @@ func DrawCheckerboard(startX int32, startY int32, rW int32, rH int32) {
 			newPosX = 0 + squareSize
 			chetCounter--
 		}
-
-		for stepX := squareSize * 2; newPosX <= rW; newPosX = newPosX + stepX {
-			fmt.Println("newPosX", newPosX)
-			fmt.Println("newPosY", newPosY)
-			renderer.FillRect(&sdl.Rect{newPosX + startX, newPosY + startY, squareSize, squareSize})
-			fmt.Println("##end raw##")
-
+		for stepX := squareSize * 2; newPosX <= screenWidth; newPosX = newPosX + stepX {
+			// fmt.Println("newPosX", newPosX)
+			// fmt.Println("newPosY", newPosY)
+			renderer.FillRect(&sdl.Rect{newPosX, newPosY, squareSize, squareSize})
+			// fmt.Println("##end raw##")
 		}
-
-		// fmt.Println("chetCounter", chetCounter)
 	}
 }
 
@@ -431,8 +435,8 @@ func SetColor(clr string) error {
 
 // Draw - renders background and puts created textures in window
 func Draw() {
-	fmt.Printf("draw start\n")
 	defer renderer.Present()
+	fmt.Printf("draw start\n")
 
 	newWidth, newHeight := Rescale(imageWidth, imageHeight)
 	fmt.Println("image width", imageWidth)
@@ -443,12 +447,28 @@ func Draw() {
 	offsetX := (screenWidth - newWidth) / 2
 	offsetY := (screenHeight - newHeight) / 2
 
-	// renderer.Clear()
-	DrawZalivka()
-	// DrawCheckerboard(0, 0, screenWidth, screenHeight)
+	renderer.SetClipRect(&sdl.Rect{0, 0, screenWidth, screenHeight})
+	DrawPattern(patternZalivka)
 
-	DrawBackground(offsetX, offsetY, newWidth, newHeight)
-	DrawCheckerboard(offsetX, offsetY, newWidth, newHeight)
+	renderer.SetClipRect(&sdl.Rect{offsetX, offsetY, newWidth, newHeight})
+	DrawPattern(patternBg)
+
+	// if zalivkaChB || bgChB {
+	// 	if zalivkaChB {
+	// 		renderer.SetClipRect(&sdl.Rect{0, 0, screenWidth, screenHeight})
+	// 	}
+	// 	if bgChB {
+	// 		renderer.SetClipRect(&sdl.Rect{offsetX, offsetY, newWidth, newHeight})
+	// 	}
+
+	// }
+	renderer.SetClipRect(nil)
+
+	// SetColor("red")
+	// renderer.FillRect(&sdl.Rect{0, 0, screenWidth, screenHeight})
+
+	// SetColor("green")
+	// renderer.FillRect(&sdl.Rect{0, 0, screenWidth, screenHeight})
 
 	if imageError != nil {
 		DrawCross()
@@ -477,8 +497,8 @@ func Draw() {
 	// Do you want your image upside down AND looking the other way? sdl.FLIP_HORIZONTAL | sdl.SDL_FLIP_VERTICAL
 
 	renderer.CopyEx(textureImg, nil, &sdl.Rect{offsetX, offsetY, newWidth, newHeight}, 0, nil, sdl.FLIP_NONE)
-	fmt.Printf("draw end\n")
 
+	fmt.Printf("draw end\n")
 }
 
 // ###############################

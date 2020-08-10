@@ -2,30 +2,43 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 
 	"github.com/veandco/go-sdl2/img"
 	"github.com/veandco/go-sdl2/sdl"
 )
 
-const screenWidth = int32(1024)
-const screenHeight = int32(768)
+const screenWidth = int32(1025)
+const screenHeight = int32(769)
+const windowPositionX = int32(200)
+const windowPositionY = int32(50)
+const defaultMask = "*.png;*.jpg;*.jpeg;*.ico;*.bmp;*.cur;*.pnm;*.xpm;*.lbm;*.pcx;*.gof;*.tga;*.tiff;*.xv;*.ppm;*.pgm;*.pbm;*.iff;*.ilbmo"
+const defaultColor = "grey"
 
 var (
-	window      *sdl.Window
-	renderer    *sdl.Renderer
-	imageWidth  int32
-	imageHeight int32
-	textureImg  *sdl.Texture
-	imageError  error                           = fmt.Errorf("aaa")
-	Rescale     func(W, H int32) (int32, int32) = RescaleNone
+	window              *sdl.Window
+	renderer            *sdl.Renderer
+	imageWidth          int32
+	imageHeight         int32
+	textureImg          *sdl.Texture
+	textureCheckerboard *sdl.Texture
+	imageError          error                           = fmt.Errorf("aaa")
+	Rescale             func(W, H int32) (int32, int32) = RescaleNone
 
 	// fileCounter int = 0
 	// outCache    []string = os.Args[1:]
 	filelist []string
 	// scanlist  []string
-	fileindex int = -1
+	fileindex            int = -1
+	curZalivkaColor          = defaultColor
+	curBgColor               = defaultColor
+	isZalikaCheckerBoard     = false
+	isBgCheckerBoard         = false
+	wantChecker              = false
 )
 
 // Setup - starts SDL, creates window, pre-loads images, sets render quality
@@ -36,7 +49,7 @@ func Setup() (successful bool) {
 		return false
 	}
 
-	window, err = sdl.CreateWindow("IMG Viewer", 0, 0,
+	window, err = sdl.CreateWindow("IMG Viewer", windowPositionX, windowPositionY,
 		screenWidth, screenHeight, sdl.WINDOW_BORDERLESS)
 	if err != nil {
 		fmt.Fprint(os.Stderr, "Failed to create renderer: %s\n", err)
@@ -74,65 +87,118 @@ func Shutdown() {
 	sdl.Quit()
 }
 
-func ParseArgs(args []string) []string {
+func Sobaka() {
+	fmt.Println("Woof-woof")
+}
+
+func CustomGlob(glob string) ([]string, []string) {
+	argList := strings.Split(glob, ";")
 	ret := []string{}
-	for _, mask := range args[1:] {
-		list, err := filepath.Glob(mask)
+	errList := []string{}
+	dupmap := map[string]int{}
+	dupIndex := 0
+	for _, s := range argList {
+		searchList, err := filepath.Glob(s)
 		if err != nil {
-			fmt.Println(err)
+			errList = append(errList, err.Error())
+			continue
 		}
-		ret = append(ret, list...)
+
+		for _, filename := range searchList {
+
+			val := dupmap[filename]
+			if val != 0 {
+				continue
+			}
+			dupIndex++
+			ret = append(ret, filename)
+			dupmap[filename] = dupIndex
+
+		}
+		// fmt.Println("dupmap is", dupmap)
+
+		// fmt.Println("ret is", ret)
+		fmt.Println("############")
 	}
 
-	fmt.Println("##################", ret)
+	if len(errList) > 0 {
+		errList = nil
+	}
+
+	return ret, errList
+}
+
+func ParseArgs(args []string) []string {
+	ret := []string{}
+	// noFlags := true
+	// CustomFlag := false
+	doSort := false
+	maskList := []string{}
+	filePosName := ""
+	// isDefaultFilterMode := true
+	// es := 0
+	errors := []string{}
+	for i, arg := range args[1:] {
+		fmt.Println(args[i+1])
+		customFlag := strings.HasPrefix(arg, "-")
+		if customFlag {
+			fmt.Println(arg, "is custom flag")
+			// filters = append(filters, arg)
+			switch arg {
+			default:
+				if strings.HasPrefix(arg, "-x:") {
+					filePosName = strings.TrimPrefix(arg, "-x:")
+					continue
+				}
+				errors = append(errors, fmt.Sprintf("Unsupported argument %v", arg))
+				continue
+			case "-all":
+				arg = defaultMask
+			case "-sort":
+				doSort = true
+				continue
+			case "-sobaka":
+				fmt.Println(arg, "is fine")
+				Sobaka()
+				continue
+			}
+		}
+		maskList = append(maskList, arg)
+	}
+
+	if len(maskList) == 0 {
+		maskList = append(maskList, defaultMask)
+	}
+
+	errList := []string{}
+	ret, errList = CustomGlob(strings.Join(maskList, ";"))
+	errors = append(errors, errList...)
+
+	if len(errors) > 0 {
+		for _, s := range errors {
+			fmt.Println(s)
+		}
+		os.Exit(2)
+	}
+
+	if doSort {
+		fmt.Println(doSort)
+		sort.Strings(ret)
+	}
+	if filePosName != "" {
+		for i, name := range ret {
+			if name == filePosName {
+				fileindex = i
+			}
+		}
+	}
+
 	return ret
 }
 
-// // NextFile - is for switching argument masks
-// func NextFile(wDir int) string {
-
-// 	// indexes of watching direction
-// 	switch wDir {
-// 	// to right
-// 	case 1:
-// 		fileCounter++
-// 		if fileCounter > len(outCache) {
-// 			fileCounter = 1
-// 		}
-// 	// to left
-// 	case 2:
-// 		fileCounter--
-// 		if fileCounter < 1 {
-// 			fileCounter = len(outCache)
-// 		}
-// 	}
-
-// 	// checks masks for arguments
-// 	var curFile string
-
-// 	if len(outCache) == 0 {
-// 		err := fmt.Errorf("No arguments added")
-// 		panic(err)
-// 	}
-
-// 	switch outCache[0] {
-// 	case "png":
-// 		outCache = ScanDir("png")
-// 	case "jpg":
-// 		outCache = ScanDir("jpg")
-// 	}
-
-// 	curFile = outCache[fileCounter-1]
-// 	fmt.Printf("%v/%v | %v\n", fileCounter, len(outCache), curFile)
-// 	return curFile
-
-// }
-
 // CreateImage - creates surfaces with sorce image sizes and puts it in texture
 func CreateImage(file string) (successful bool) {
-	// ChangeCurrentImage()
 
-	// currentFilename := NextFile(wDir)
 	currentFilename := file
 	surfaceImg, err := img.Load(currentFilename)
 	imageError = err
@@ -140,9 +206,6 @@ func CreateImage(file string) (successful bool) {
 		fmt.Fprintf(os.Stderr, "Failed to load image: %s\n", imageError)
 		return false
 	}
-
-	// )
-	// os.Exit(4)
 
 	// This is for getting the Width and Height of surfaceImg. Once surfaceImg.Free() is called we lose the
 	// ability to get information about the image we loaded into ram
@@ -169,6 +232,7 @@ func HandleEvents() {
 	doDraw := true
 	quit := false
 	scaleNone := true
+	modifers := false
 	for !quit {
 		if doDraw {
 			Draw()
@@ -179,6 +243,15 @@ func HandleEvents() {
 			case *sdl.QuitEvent:
 				quit = true
 			case *sdl.KeyboardEvent:
+				switch t.Keysym.Sym {
+				case sdl.K_LALT, sdl.K_RALT, sdl.K_LSHIFT, sdl.K_RSHIFT, sdl.K_LCTRL, sdl.K_RCTRL:
+					modifers = false
+					if t.Type == sdl.KEYDOWN {
+						modifers = true
+						continue
+					}
+				}
+
 				if t.Type != sdl.KEYDOWN {
 					continue
 				}
@@ -186,14 +259,11 @@ func HandleEvents() {
 				switch t.Keysym.Sym {
 				case sdl.K_RIGHT:
 					fmt.Println("next file")
-
 					CreateImage(getNextFile())
 					doDraw = true
 				case sdl.K_LEFT:
 					fmt.Println("prev file")
-
 					CreateImage(getPrevFile())
-
 					doDraw = true
 				case sdl.K_ESCAPE:
 					quitEvent := sdl.QuitEvent{Type: sdl.QUIT}
@@ -205,6 +275,37 @@ func HandleEvents() {
 						Rescale = RescaleFit
 					}
 					doDraw = true
+				case sdl.K_1:
+
+					if !modifers {
+						curZalivkaColor = "grey"
+					} else {
+						curBgColor = "grey"
+					}
+					doDraw = true
+				case sdl.K_2:
+					if !modifers {
+						curZalivkaColor = "red"
+					} else {
+						curBgColor = "red"
+					}
+					doDraw = true
+				case sdl.K_3:
+					if !modifers {
+						curZalivkaColor = "green"
+					} else {
+						curBgColor = "green"
+					}
+					doDraw = true
+					// case sdl.K_6:
+					// 	curBgColor = "grey"
+					// 	doDraw = true
+					// case sdl.K_7:
+					// 	curBgColor = "red"
+					// 	doDraw = true
+					// case sdl.K_8:
+					// 	curBgColor = "green"
+					// 	doDraw = true
 				}
 			}
 		}
@@ -226,8 +327,8 @@ func RescaleFit(w, h int32) (int32, int32) {
 		k = scrH / imgH
 	}
 
-	scaledImageWidth := k * imgW
-	scaledImageHeight := k * imgH
+	scaledImageWidth := math.Round(k * imgW)
+	scaledImageHeight := math.Round(k * imgH)
 	return int32(scaledImageWidth), int32(scaledImageHeight)
 
 }
@@ -243,16 +344,112 @@ func DrawCross() {
 	renderer.DrawLine(screenWidth, 0, 0, screenHeight)
 }
 
+func DrawZalivka() {
+	err := SetColor(curZalivkaColor)
+	if err != nil {
+		panic(err)
+	}
+	// DrawCheckerboard(0, 0, screenWidth, screenHeight)
+	renderer.Clear()
+}
+
+func DrawBackground(oX int32, oY int32, rW int32, rH int32) {
+
+	err := SetColor(curBgColor)
+	if err != nil {
+		panic(err)
+	}
+	// renderer.DrawRect(&sdl.Rect{0, 0, 100, 100})
+	fmt.Println("bg startX", oX)
+	fmt.Println("bg startY", oY)
+	fmt.Println("bg width", rW)
+	fmt.Println("bg height", rH)
+	renderer.FillRect(&sdl.Rect{oX, oY, rW, rH})
+
+	// renderer.Clear()
+}
+
+func DrawCheckerboard(startX int32, startY int32, rW int32, rH int32) {
+
+	renderer.SetDrawColor(255, 50, 255, 100)
+
+	newPosX := int32(0)
+	newPosY := int32(0)
+	fmt.Println("checker startX", startX)
+	fmt.Println("checker startY", startY)
+	fmt.Println("checker width", rW)
+	fmt.Println("checker height", rH)
+
+	squareSize := int32(8)
+
+	chetCounter := 0
+
+	// начать строку
+	for stepY := squareSize; newPosY <= rH; newPosY = newPosY + stepY {
+		fmt.Println("newPosX", newPosX)
+		fmt.Println("newPosY", newPosY)
+		fmt.Println("chetCounter", chetCounter)
+
+		if chetCounter == 0 {
+			newPosX = 0
+			chetCounter++
+		} else {
+			newPosX = 0 + squareSize
+			chetCounter--
+		}
+		for stepX := squareSize * 2; newPosX <= rW; newPosX = newPosX + stepX {
+			fmt.Println("newPosX", newPosX)
+			fmt.Println("newPosY", newPosY)
+			renderer.FillRect(&sdl.Rect{newPosX + startX, newPosY + startY, squareSize, squareSize})
+			fmt.Println("##end raw##")
+
+		}
+
+	}
+}
+
+func SetColor(clr string) error {
+	var err error
+
+	if clr == "" {
+		err = fmt.Errorf("no color selected")
+		return err
+	}
+
+	switch clr {
+	case "green":
+		err = renderer.SetDrawColor(50, 255, 50, 255)
+	case "red":
+		err = renderer.SetDrawColor(255, 50, 50, 255)
+	case "grey":
+		err = renderer.SetDrawColor(100, 100, 100, 255)
+	}
+	fmt.Println("color is", clr)
+	return err
+}
+
 // Draw - renders background and puts created textures in window
 func Draw() {
 	fmt.Printf("draw start\n")
-
 	defer renderer.Present()
-	renderer.SetDrawColor(255, 255, 55, 255)
-	renderer.Clear()
+
+	newWidth, newHeight := Rescale(imageWidth, imageHeight)
+	fmt.Println("image width", imageWidth)
+	fmt.Println("image height", imageHeight)
+	fmt.Println("scaled width", newWidth)
+	fmt.Println("scaled height", newWidth)
+
+	offsetX := (screenWidth - newWidth) / 2
+	offsetY := (screenHeight - newHeight) / 2
+
+	// renderer.Clear()
+	DrawZalivka()
+	// DrawCheckerboard(0, 0, screenWidth, screenHeight)
+
+	DrawBackground(offsetX, offsetY, newWidth, newHeight)
+	DrawCheckerboard(offsetX, offsetY, newWidth, newHeight)
 
 	if imageError != nil {
-
 		DrawCross()
 		return
 	}
@@ -277,9 +474,6 @@ func Draw() {
 	// Do you want your image looking the other way? sdl.FLIP_HORIZONTAL
 	// Do you want your image upside down? sdl.SDL_FLIP_VERTICAL
 	// Do you want your image upside down AND looking the other way? sdl.FLIP_HORIZONTAL | sdl.SDL_FLIP_VERTICAL
-	newWidth, newHeight := Rescale(imageWidth, imageHeight)
-	offsetX := (screenWidth - newWidth) / 2
-	offsetY := (screenHeight - newHeight) / 2
 
 	renderer.CopyEx(textureImg, nil, &sdl.Rect{offsetX, offsetY, newWidth, newHeight}, 0, nil, sdl.FLIP_NONE)
 	fmt.Printf("draw end\n")
@@ -287,61 +481,6 @@ func Draw() {
 }
 
 // ###############################
-
-// // ScanDir - searches files in directory by mask
-// func ScanDir(fl []string) []string {
-// 	fmt.Printf("scan start\n")
-// 	fileindex = 0
-// 	fmt.Println("change file index for scanning - ", fl[fileindex])
-// 	var allFiles []string
-// 	var out []string
-// 	root := "."
-// 	var walkError error
-
-// 	// настройка сканирования данных
-// 	walkFunc := func(path string, info os.FileInfo, err error) error {
-// 		if err != nil {
-// 			fmt.Printf("walkfunc : %v\n", walkError)
-// 			walkError = err
-// 			return walkError
-// 		}
-
-// 		// поиск файлов среди всего
-// 		isFile := info.Mode().IsRegular()
-// 		if isFile {
-// 			// fmt.Printf("visited : %q\n", path)
-// 			allFiles = append(allFiles, path)
-// 		}
-// 		return walkError
-// 	}
-// 	// сканирование данных в переменной пути
-// 	fmt.Printf("walking start\n")
-// 	walkError = filepath.Walk(root, walkFunc)
-// 	fmt.Printf("walking end\n")
-// 	// fmt.Println(walkError)
-// 	// fmt.Println(allFiles)
-// 	fmt.Printf("append start\n")
-
-// 	for i := range allFiles {
-// 		file := allFiles[i]
-// 		matched, err := regexp.MatchString(fl[fileindex], file)
-// 		if matched {
-// 			out = append(out, file)
-// 			// fmt.Println(allFiles[i])
-// 		}
-
-// 		if err != nil {
-// 			fmt.Println("Failed to match string by mask")
-// 			panic(err)
-// 		}
-
-// 		fmt.Println(i, out)
-// 	}
-// 	fmt.Printf("append end\n")
-// 	fmt.Printf("scan end\n")
-
-// 	return out
-// }
 
 func getCurFile() string {
 	if fileindex == -1 {
@@ -381,7 +520,11 @@ func main() {
 	}
 	filelist = ParseArgs(os.Args)
 	// scanlist = ScanDir(filelist)
-
+	err := SetColor(defaultColor)
+	if err != nil {
+		fmt.Println("no background color")
+		panic(err)
+	}
 	CreateImage(getCurFile())
 
 	HandleEvents()
