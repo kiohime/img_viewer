@@ -12,15 +12,15 @@ import (
 	"github.com/veandco/go-sdl2/sdl"
 )
 
-const screenWidth = int32(1025)
-const screenHeight = int32(769)
 const windowPositionX = int32(200)
 const windowPositionY = int32(50)
 const defaultMask = "*.png;*.jpg;*.jpeg;*.ico;*.bmp;*.cur;*.pnm;*.xpm;*.lbm;*.pcx;*.gof;*.tga;*.tiff;*.xv;*.ppm;*.pgm;*.pbm;*.iff;*.ilbmo"
-const defaultColor = "grey"
 
 var (
 	window              *sdl.Window
+	screenWidth         = int32(1025)
+	screenHeight        = int32(769)
+	fullscreen          = false
 	renderer            *sdl.Renderer
 	imageWidth          int32
 	imageHeight         int32
@@ -33,14 +33,14 @@ var (
 	// outCache    []string = os.Args[1:]
 	filelist []string
 	// scanlist  []string
-	fileindex       int    = -1
-	curZalivkaColor        = defaultColor
-	curBgColor             = defaultColor
-	patternMode            = 0
-	zalivkaChB             = false
-	bgChB                  = false
-	patternZalivka  string = "red"
-	patternBg       string = "green"
+	fileindex      int = -1
+	patternMode        = 0
+	zalivkaChB         = false
+	bgChB              = false
+	patternZalivka string
+	patternBg      string
+	defaultZalivka = "black"
+	defaultBg      = "checkerLight"
 )
 
 // Setup - starts SDL, creates window, pre-loads images, sets render quality
@@ -52,7 +52,7 @@ func Setup() (successful bool) {
 	}
 
 	window, err = sdl.CreateWindow("IMG Viewer", windowPositionX, windowPositionY,
-		screenWidth, screenHeight, sdl.WINDOW_BORDERLESS)
+		screenWidth, screenHeight, sdl.WINDOW_RESIZABLE)
 	if err != nil {
 		fmt.Fprint(os.Stderr, "Failed to create renderer: %s\n", err)
 		return false
@@ -130,6 +130,23 @@ func CustomGlob(glob string) ([]string, []string) {
 	return ret, errList
 }
 
+func getArgument(arg, prefix string, result *string) bool {
+	// fmt.Println("im here#########")
+	if strings.HasPrefix(arg, prefix) {
+		*result = strings.TrimPrefix(arg, prefix)
+		return true
+	}
+	return false
+}
+
+func SetFullscreen(x bool) {
+	mode := uint32(0)
+	if x {
+		mode = sdl.WINDOW_FULLSCREEN_DESKTOP
+	}
+	window.SetFullscreen(mode)
+}
+
 func ParseArgs(args []string) []string {
 	ret := []string{}
 	// noFlags := true
@@ -148,12 +165,16 @@ func ParseArgs(args []string) []string {
 			// filters = append(filters, arg)
 			switch arg {
 			default:
-				if strings.HasPrefix(arg, "-x:") {
-					filePosName = strings.TrimPrefix(arg, "-x:")
-					continue
+				ok := false
+				ok = ok || getArgument(arg, "-x:", &filePosName)
+				ok = ok || getArgument(arg, "-zalivka:", &defaultZalivka)
+				ok = ok || getArgument(arg, "-bg:", &defaultBg)
+
+				if !ok {
+					errors = append(errors, fmt.Sprintf("Unsupported argument %v", arg))
 				}
-				errors = append(errors, fmt.Sprintf("Unsupported argument %v", arg))
 				continue
+
 			case "-all":
 				arg = defaultMask
 			case "-sort":
@@ -163,6 +184,8 @@ func ParseArgs(args []string) []string {
 				fmt.Println(arg, "is fine")
 				Sobaka()
 				continue
+			case "-fullscreen":
+				fullscreen = true
 			}
 		}
 		maskList = append(maskList, arg)
@@ -235,6 +258,7 @@ func HandleEvents() {
 	quit := false
 	scaleNone := true
 	modifers := false
+
 	for !quit {
 		if doDraw {
 			Draw()
@@ -242,6 +266,12 @@ func HandleEvents() {
 		}
 		for event := sdl.WaitEvent(); event != nil; event = sdl.PollEvent() {
 			switch t := event.(type) {
+			case *sdl.WindowEvent:
+				switch t.Event {
+				case sdl.WINDOWEVENT_RESIZED:
+					screenWidth, screenHeight = window.GetSize()
+					doDraw = true
+				}
 			case *sdl.QuitEvent:
 				quit = true
 			case *sdl.KeyboardEvent:
@@ -277,27 +307,24 @@ func HandleEvents() {
 						Rescale = RescaleFit
 					}
 					doDraw = true
-				case sdl.K_1:
 
-					if !modifers {
-						patternZalivka = "checker"
-					} else {
-						patternBg = "checker"
-					}
+				case sdl.K_RETURN:
+					fullscreen = !fullscreen
+					SetFullscreen(fullscreen)
+				case sdl.K_1:
+					setIf(modifers, "black", &patternBg, &patternZalivka)
 					doDraw = true
 				case sdl.K_2:
-					if !modifers {
-						patternZalivka = "red"
-					} else {
-						patternBg = "red"
-					}
+					setIf(modifers, "white", &patternBg, &patternZalivka)
 					doDraw = true
 				case sdl.K_3:
-					if !modifers {
-						patternZalivka = "green"
-					} else {
-						patternBg = "green"
-					}
+					setIf(modifers, "red", &patternBg, &patternZalivka)
+					doDraw = true
+				case sdl.K_q:
+					setIf(modifers, "checkerDark", &patternBg, &patternZalivka)
+					doDraw = true
+				case sdl.K_w:
+					setIf(modifers, "checkerLight", &patternBg, &patternZalivka)
 					doDraw = true
 					// case sdl.K_6:123232
 					// 	curBgColor = "grey"
@@ -360,21 +387,32 @@ func DrawCross() {
 func DrawPattern(name string) {
 	// whatColor := ""
 	switch name {
+	case "black":
+		DrawBlank(0, 0, 0)
+	case "white":
+		DrawBlank(255, 255, 255)
+	case "grey":
+		DrawBlank(172, 172, 172)
 	case "red":
 		DrawBlank(255, 0, 0)
 	case "green":
 		DrawBlank(0, 255, 0)
-	case "checker":
-		c1 := sdl.Color{100, 100, 100, 255}
-		c2 := sdl.Color{200, 200, 200, 255}
+	case "blue":
+		DrawBlank(0, 0, 255)
+	case "checkerDark":
+		c1 := sdl.Color{45, 45, 45, 255}
+		c2 := sdl.Color{85, 85, 85, 255}
+		DrawCheckerboard(c1, c2)
+	case "checkerLight":
+		c1 := sdl.Color{180, 180, 180, 180}
+		c2 := sdl.Color{220, 220, 220, 255}
 		DrawCheckerboard(c1, c2)
 	}
-
 }
 
 func DrawBlank(r, g, b uint8) {
 	renderer.SetDrawColor(r, g, b, 255)
-	renderer.FillRect(&sdl.Rect{0, 0, screenWidth, screenWidth})
+	renderer.FillRect(&sdl.Rect{0, 0, screenWidth, screenHeight})
 }
 
 func DrawCheckerboard(color1, color2 sdl.Color) {
@@ -392,7 +430,7 @@ func DrawCheckerboard(color1, color2 sdl.Color) {
 
 	chetCounter := 0
 	// начать строку
-	for stepY := squareSize; newPosY <= screenWidth; newPosY = newPosY + stepY {
+	for stepY := squareSize; newPosY <= screenHeight; newPosY = newPosY + stepY {
 		// fmt.Println("newPosX", newPosX)
 		// fmt.Println("newPosY", newPosY)
 		// fmt.Println("chetCounter", chetCounter)
@@ -411,26 +449,6 @@ func DrawCheckerboard(color1, color2 sdl.Color) {
 			// fmt.Println("##end raw##")
 		}
 	}
-}
-
-func SetColor(clr string) error {
-	var err error
-
-	if clr == "" {
-		err = fmt.Errorf("no color selected")
-		return err
-	}
-
-	switch clr {
-	case "green":
-		err = renderer.SetDrawColor(50, 255, 50, 255)
-	case "red":
-		err = renderer.SetDrawColor(255, 50, 50, 255)
-	case "grey":
-		err = renderer.SetDrawColor(100, 100, 100, 255)
-	}
-	fmt.Println("color is", clr)
-	return err
 }
 
 // Draw - renders background and puts created textures in window
@@ -453,22 +471,7 @@ func Draw() {
 	renderer.SetClipRect(&sdl.Rect{offsetX, offsetY, newWidth, newHeight})
 	DrawPattern(patternBg)
 
-	// if zalivkaChB || bgChB {
-	// 	if zalivkaChB {
-	// 		renderer.SetClipRect(&sdl.Rect{0, 0, screenWidth, screenHeight})
-	// 	}
-	// 	if bgChB {
-	// 		renderer.SetClipRect(&sdl.Rect{offsetX, offsetY, newWidth, newHeight})
-	// 	}
-
-	// }
 	renderer.SetClipRect(nil)
-
-	// SetColor("red")
-	// renderer.FillRect(&sdl.Rect{0, 0, screenWidth, screenHeight})
-
-	// SetColor("green")
-	// renderer.FillRect(&sdl.Rect{0, 0, screenWidth, screenHeight})
 
 	if imageError != nil {
 		DrawCross()
@@ -532,6 +535,20 @@ func getPrevFile() string {
 	return getCurFile()
 }
 
+func setIf(flag bool, val string, resultTrue, resultFalse *string) {
+	if flag {
+		if resultTrue == nil {
+			return
+		}
+		*resultTrue = val
+	} else {
+		if resultFalse == nil {
+			return
+		}
+		*resultFalse = val
+	}
+}
+
 // ############################################
 
 func main() {
@@ -540,12 +557,9 @@ func main() {
 		os.Exit(1)
 	}
 	filelist = ParseArgs(os.Args)
-	// scanlist = ScanDir(filelist)
-	err := SetColor(defaultColor)
-	if err != nil {
-		fmt.Println("no background color")
-		panic(err)
-	}
+	SetFullscreen(fullscreen)
+	patternZalivka = defaultZalivka
+	patternBg = defaultBg
 	CreateImage(getCurFile())
 
 	HandleEvents()
