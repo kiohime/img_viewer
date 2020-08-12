@@ -39,7 +39,7 @@ var (
 	bgChB              = false
 	patternZalivka string
 	patternBg      string
-	defaultZalivka = "black"
+	defaultZalivka = "checkerDark"
 	defaultBg      = "checkerLight"
 )
 
@@ -305,6 +305,7 @@ func HandleEvents() {
 					scaleNone = !scaleNone
 					if !scaleNone {
 						Rescale = RescaleFit
+						DrawRescaleIndicator()
 					}
 					doDraw = true
 
@@ -352,11 +353,17 @@ func HandleEvents() {
 	}
 }
 
+func DrawRescaleIndicator() {
+	fmt.Println("is refitted##############")
+
+	renderer.SetDrawColor(100, 255, 255, 255)
+	renderer.FillRect(&sdl.Rect{300, 300, 300, 300})
+}
+
 func RescaleFit(w, h int32) (int32, int32) {
 	if screenWidth <= 0 || screenHeight <= 0 || w <= 0 || h <= 0 {
 		return RescaleNone(w, h)
 	}
-
 	imgW := float64(w)
 	imgH := float64(h)
 	scrW := float64(screenWidth)
