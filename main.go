@@ -5,6 +5,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 
@@ -12,22 +13,22 @@ import (
 	"github.com/veandco/go-sdl2/sdl"
 )
 
-const windowPositionX = int32(200)
-const windowPositionY = int32(50)
+const windowPositionX = int32(1000)
+const windowPositionY = int32(30)
 const defaultMask = "*.png;*.jpg;*.jpeg;*.ico;*.bmp;*.cur;*.pnm;*.xpm;*.lbm;*.pcx;*.gof;*.tga;*.tiff;*.xv;*.ppm;*.pgm;*.pbm;*.iff;*.ilbmo"
 
 var (
-	window              *sdl.Window
-	screenWidth         = int32(1025)
-	screenHeight        = int32(769)
-	fullscreen          = false
-	renderer            *sdl.Renderer
-	imageWidth          int32
-	imageHeight         int32
-	textureImg          *sdl.Texture
-	textureCheckerboard *sdl.Texture
-	imageError          error                           = fmt.Errorf("aaa")
-	Rescale             func(W, H int32) (int32, int32) = RescaleNone
+	window       *sdl.Window
+	screenWidth  = int32(900)
+	screenHeight = int32(600)
+	scaleNone    = true
+	fullscreen   = false
+	renderer     *sdl.Renderer
+	imageWidth   int32
+	imageHeight  int32
+	textureImg   *sdl.Texture
+	imageError   error                           = fmt.Errorf("aaa")
+	Rescale      func(W, H int32) (int32, int32) = RescaleNone
 
 	// fileCounter int = 0
 	// outCache    []string = os.Args[1:]
@@ -45,7 +46,7 @@ var (
 
 // Setup - starts SDL, creates window, pre-loads images, sets render quality
 func Setup() (successful bool) {
-	err := sdl.Init(sdl.INIT_VIDEO)
+	err := sdl.Init(sdl.INIT_EVERYTHING)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to initialize sdl: %s\n", err)
 		return false
@@ -62,6 +63,7 @@ func Setup() (successful bool) {
 		fmt.Fprint(os.Stderr, "Failed to create renderer: %s\n", err)
 		return false
 	}
+	renderer.SetDrawBlendMode(sdl.BLENDMODE_BLEND)
 	renderer.Clear()
 
 	// Unnecessary preloading of jpg and png libraries. Can be commented out and program will automatically load
@@ -73,7 +75,6 @@ func Setup() (successful bool) {
 	// time.Sleep(time.Millisecond * 10) into time.Sleep(time.Millisecond * 100) to slow down the speed of the rotating
 	// stick figure and get a good look at how blocky the stick figure is at RENDER_SCALE_QUALITY 0 versus 1 or 2
 	sdl.SetHint(sdl.HINT_RENDER_SCALE_QUALITY, "1")
-
 	return true
 }
 
@@ -93,12 +94,21 @@ func Sobaka() {
 	fmt.Println("Woof-woof")
 }
 
+func CustomAbs(path string) (string, error) {
+	ret, err := filepath.Abs(path)
+	switch runtime.GOOS {
+	case "windows":
+		ret = strings.ToLower(ret)
+	}
+	// fmt.Println("system:", runtime.GOOS)
+	return ret, err
+}
+
 func CustomGlob(glob string) ([]string, []string) {
 	argList := strings.Split(glob, ";")
 	ret := []string{}
 	errList := []string{}
-	dupmap := map[string]int{}
-	dupIndex := 0
+	dupmap := map[string]bool{}
 	for _, s := range argList {
 		searchList, err := filepath.Glob(s)
 		if err != nil {
@@ -107,20 +117,24 @@ func CustomGlob(glob string) ([]string, []string) {
 		}
 
 		for _, filename := range searchList {
+			err := error(nil)
+			filename, err = CustomAbs(filename)
+			fmt.Println("#####filename is:", filename)
+			if err != nil {
+				errList = append(errList, fmt.Sprintf("filepath.Abs error: %v", err))
+			}
 
-			val := dupmap[filename]
-			if val != 0 {
+			if dupmap[filename] {
 				continue
 			}
-			dupIndex++
 			ret = append(ret, filename)
-			dupmap[filename] = dupIndex
+			dupmap[filename] = true
 
 		}
 		// fmt.Println("dupmap is", dupmap)
 
 		// fmt.Println("ret is", ret)
-		fmt.Println("############")
+		// fmt.Println("############")
 	}
 
 	if len(errList) > 0 {
@@ -211,6 +225,11 @@ func ParseArgs(args []string) []string {
 		sort.Strings(ret)
 	}
 	if filePosName != "" {
+		err := error(nil)
+		filePosName, err = CustomAbs(filePosName)
+		if err != nil {
+			fmt.Println("flag -x error:", err)
+		}
 		for i, name := range ret {
 			if name == filePosName {
 				fileindex = i
@@ -256,7 +275,6 @@ func CreateImage(file string) (successful bool) {
 func HandleEvents() {
 	doDraw := true
 	quit := false
-	scaleNone := true
 	modifers := false
 
 	for !quit {
@@ -305,7 +323,6 @@ func HandleEvents() {
 					scaleNone = !scaleNone
 					if !scaleNone {
 						Rescale = RescaleFit
-						DrawRescaleIndicator()
 					}
 					doDraw = true
 
@@ -351,13 +368,6 @@ func HandleEvents() {
 			}
 		}
 	}
-}
-
-func DrawRescaleIndicator() {
-	fmt.Println("is refitted##############")
-
-	renderer.SetDrawColor(100, 255, 255, 255)
-	renderer.FillRect(&sdl.Rect{300, 300, 300, 300})
 }
 
 func RescaleFit(w, h int32) (int32, int32) {
@@ -414,12 +424,21 @@ func DrawPattern(name string) {
 		c1 := sdl.Color{180, 180, 180, 180}
 		c2 := sdl.Color{220, 220, 220, 255}
 		DrawCheckerboard(c1, c2)
+	case "rescaleIndicator":
+		DrawCustomBlank(255, 100, 200, 100, 50, 50, 50, 25)
+	case "oversizeIndicator":
+		DrawCustomBlank(100, 200, 255, 100, 110, 50, 50, 25)
 	}
 }
 
 func DrawBlank(r, g, b uint8) {
 	renderer.SetDrawColor(r, g, b, 255)
 	renderer.FillRect(&sdl.Rect{0, 0, screenWidth, screenHeight})
+}
+
+func DrawCustomBlank(r, g, b, a uint8, x, y, w, h int32) {
+	renderer.SetDrawColor(r, g, b, a)
+	renderer.FillRect(&sdl.Rect{x, y, w, h})
 }
 
 func DrawCheckerboard(color1, color2 sdl.Color) {
@@ -477,9 +496,7 @@ func Draw() {
 
 	renderer.SetClipRect(&sdl.Rect{offsetX, offsetY, newWidth, newHeight})
 	DrawPattern(patternBg)
-
 	renderer.SetClipRect(nil)
-
 	if imageError != nil {
 		DrawCross()
 		return
@@ -507,6 +524,17 @@ func Draw() {
 	// Do you want your image upside down AND looking the other way? sdl.FLIP_HORIZONTAL | sdl.SDL_FLIP_VERTICAL
 
 	renderer.CopyEx(textureImg, nil, &sdl.Rect{offsetX, offsetY, newWidth, newHeight}, 0, nil, sdl.FLIP_NONE)
+	if !scaleNone {
+		DrawPattern("rescaleIndicator")
+	}
+	if newWidth > screenWidth || newHeight > screenHeight {
+		DrawPattern("oversizeIndicator")
+	}
+
+	_, dy := WriteTextCustom(0, 300, 200, "Hello world")
+	_, dy = WriteTextCustom(1, 300, dy, "Hello world")
+	_, dy = WriteTextCustom(3, 300, dy, "Hello world")
+	_, dy = WriteTextCustom(4, 300, dy, "Hello world")
 
 	fmt.Printf("draw end\n")
 }
@@ -563,6 +591,8 @@ func main() {
 	if !Setup() {
 		os.Exit(1)
 	}
+	InitFonts()
+
 	filelist = ParseArgs(os.Args)
 	SetFullscreen(fullscreen)
 	patternZalivka = defaultZalivka
