@@ -85,12 +85,19 @@ func WriteTextCustom(mode int, x, y int32, str string) (int32, int32) {
 		renderer.FillRect(&sdl.Rect{x - 3, y, w + 6, h})
 		renderer.CopyEx(textureTxt, nil, &sdl.Rect{x, y, w, h}, 0, nil, sdl.FLIP_NONE)
 		textureTxt.Destroy()
+	case 5:
+		textureTxt := (*sdl.Texture)(nil)
+		textureTxt, w, h = TextTexture(x, y, str)
+		renderer.SetDrawColor(255, 0, 0, 128)
+		renderer.FillRect(&sdl.Rect{x - 3, y, w + 6, h})
+		renderer.CopyEx(textureTxt, nil, &sdl.Rect{x, y, w, h}, 0, nil, sdl.FLIP_NONE)
+		textureTxt.Destroy()
 	}
 	return w + x, h + y
 }
 
 func TextTexture(x, y int32, str string) (*sdl.Texture, int32, int32) {
-	fmt.Println("write text", defaultFont)
+	// fmt.Println("write text", defaultFont)
 	// if str == "" {
 	// 	return nil, x, y
 	// }

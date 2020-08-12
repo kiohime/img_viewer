@@ -22,7 +22,9 @@ var (
 	screenWidth  = int32(900)
 	screenHeight = int32(600)
 	scaleNone    = true
+	overSize     = false
 	fullscreen   = false
+	gui          = true
 	renderer     *sdl.Renderer
 	imageWidth   int32
 	imageHeight  int32
@@ -34,6 +36,8 @@ var (
 	// outCache    []string = os.Args[1:]
 	filelist []string
 	// scanlist  []string
+	fileText = ""
+
 	fileindex      int = -1
 	patternMode        = 0
 	zalivkaChB         = false
@@ -115,7 +119,6 @@ func CustomGlob(glob string) ([]string, []string) {
 			errList = append(errList, err.Error())
 			continue
 		}
-
 		for _, filename := range searchList {
 			err := error(nil)
 			filename, err = CustomAbs(filename)
@@ -154,11 +157,14 @@ func getArgument(arg, prefix string, result *string) bool {
 }
 
 func SetFullscreen(x bool) {
+	fmt.Println("set fullscreen")
 	mode := uint32(0)
 	if x {
+		fmt.Println("make fullscreen")
 		mode = sdl.WINDOW_FULLSCREEN_DESKTOP
 	}
 	window.SetFullscreen(mode)
+
 }
 
 func ParseArgs(args []string) []string {
@@ -325,8 +331,11 @@ func HandleEvents() {
 						Rescale = RescaleFit
 					}
 					doDraw = true
-
+				case sdl.K_TAB:
+					gui = !gui
+					doDraw = true
 				case sdl.K_RETURN:
+					fmt.Println("pressing enter")
 					fullscreen = !fullscreen
 					SetFullscreen(fullscreen)
 				case sdl.K_1:
@@ -425,9 +434,9 @@ func DrawPattern(name string) {
 		c2 := sdl.Color{220, 220, 220, 255}
 		DrawCheckerboard(c1, c2)
 	case "rescaleIndicator":
-		DrawCustomBlank(255, 100, 200, 100, 50, 50, 50, 25)
+		DrawBlankCustom(255, 100, 200, 100, 50, 50, 50, 25)
 	case "oversizeIndicator":
-		DrawCustomBlank(100, 200, 255, 100, 110, 50, 50, 25)
+		DrawBlankCustom(100, 200, 255, 100, 110, 50, 50, 25)
 	}
 }
 
@@ -436,7 +445,7 @@ func DrawBlank(r, g, b uint8) {
 	renderer.FillRect(&sdl.Rect{0, 0, screenWidth, screenHeight})
 }
 
-func DrawCustomBlank(r, g, b, a uint8, x, y, w, h int32) {
+func DrawBlankCustom(r, g, b, a uint8, x, y, w, h int32) {
 	renderer.SetDrawColor(r, g, b, a)
 	renderer.FillRect(&sdl.Rect{x, y, w, h})
 }
@@ -486,7 +495,7 @@ func Draw() {
 	fmt.Println("image width", imageWidth)
 	fmt.Println("image height", imageHeight)
 	fmt.Println("scaled width", newWidth)
-	fmt.Println("scaled height", newWidth)
+	fmt.Println("scaled height", newHeight)
 
 	offsetX := (screenWidth - newWidth) / 2
 	offsetY := (screenHeight - newHeight) / 2
@@ -524,19 +533,40 @@ func Draw() {
 	// Do you want your image upside down AND looking the other way? sdl.FLIP_HORIZONTAL | sdl.SDL_FLIP_VERTICAL
 
 	renderer.CopyEx(textureImg, nil, &sdl.Rect{offsetX, offsetY, newWidth, newHeight}, 0, nil, sdl.FLIP_NONE)
-	if !scaleNone {
-		DrawPattern("rescaleIndicator")
-	}
+
+	overSize = false
 	if newWidth > screenWidth || newHeight > screenHeight {
-		DrawPattern("oversizeIndicator")
+		overSize = true
 	}
 
-	_, dy := WriteTextCustom(0, 300, 200, "Hello world")
-	_, dy = WriteTextCustom(1, 300, dy, "Hello world")
-	_, dy = WriteTextCustom(3, 300, dy, "Hello world")
-	_, dy = WriteTextCustom(4, 300, dy, "Hello world")
-
+	if gui {
+		DrawGui()
+	}
 	fmt.Printf("draw end\n")
+}
+
+func DrawGui() {
+	DrawBlankCustom(150, 150, 150, 150, 0, 0, screenWidth, screenHeight/10)
+
+	textOffX := int32(10)
+	textOffY := int32(0)
+	imageText := fmt.Sprintf("%v x %v", imageWidth, imageHeight)
+
+	_, guiTextH := WriteTextCustom(4, textOffX, textOffY, fileText)
+	_, guiTextH = WriteTextCustom(4, textOffX, guiTextH, imageText)
+
+	if overSize {
+		// DrawPattern("oversizeIndicator")
+		_, guiTextH = WriteTextCustom(5, textOffX, guiTextH, "OVERSIZE")
+	}
+	if !scaleNone {
+		// DrawPattern("rescaleIndicator")
+		_, guiTextH = WriteTextCustom(4, textOffX, guiTextH, "FIT MODE")
+	}
+	// _, dy := WriteTextCustom(0, 300, 200, "Hello world")
+	// _, dy = WriteTextCustom(1, 300, dy, "Hello world")
+	// _, dy = WriteTextCustom(3, 300, dy, "Hello world")
+	// _, dy = WriteTextCustom(4, 300, dy, "Hello world")
 }
 
 // ###############################
@@ -552,7 +582,9 @@ func getCurFile() string {
 	if fileindex != -1 {
 		ret = filelist[fileindex]
 	}
-	fmt.Printf("%v/%v | %v\n", fileindex+1, len(filelist), ret)
+	base := filepath.Base(ret)
+	fileText = fmt.Sprintf("%v/%v | %v", fileindex+1, len(filelist), base)
+	fmt.Print(fileText)
 	return ret
 }
 func getNextFile() string {
