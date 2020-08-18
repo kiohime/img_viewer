@@ -23,7 +23,7 @@ var (
 	screenHeight = int32(600)
 	scaleNone    = true
 	overSize     = false
-	fullscreen   = false
+	fullscreen   = true
 	gui          = true
 	renderer     *sdl.Renderer
 	imageWidth   int32
@@ -294,6 +294,8 @@ func HandleEvents() {
 				switch t.Event {
 				case sdl.WINDOWEVENT_RESIZED:
 					screenWidth, screenHeight = window.GetSize()
+					fmt.Printf("-- event resized %v x %v\n", t.Data1, t.Data2)
+					fmt.Printf("-- window size %v x %v\n", screenWidth, screenHeight)
 					doDraw = true
 				}
 			case *sdl.QuitEvent:
@@ -534,9 +536,10 @@ func Draw() {
 
 	renderer.CopyEx(textureImg, nil, &sdl.Rect{offsetX, offsetY, newWidth, newHeight}, 0, nil, sdl.FLIP_NONE)
 
-	overSize = false
 	if newWidth > screenWidth || newHeight > screenHeight {
 		overSize = true
+	} else {
+		overSize = false
 	}
 
 	if gui {
@@ -546,7 +549,7 @@ func Draw() {
 }
 
 func DrawGui() {
-	DrawBlankCustom(150, 150, 150, 150, 0, 0, screenWidth, screenHeight/10)
+	DrawBlankCustom(150, 150, 150, 150, 0, 0, screenWidth, 38)
 
 	textOffX := int32(10)
 	textOffY := int32(0)
