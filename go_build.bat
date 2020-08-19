@@ -1,0 +1,1 @@
+go build -tags static -ldflags "-s -w -H=windowsgui"
