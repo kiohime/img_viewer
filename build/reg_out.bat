@@ -1,1 +1,0 @@
-ftype img_viewer.images=

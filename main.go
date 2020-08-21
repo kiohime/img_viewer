@@ -294,6 +294,11 @@ func HandleEvents() {
 				switch t.Event {
 				case sdl.WINDOWEVENT_SIZE_CHANGED:
 					screenWidth, screenHeight = window.GetSize()
+					fmt.Printf("-- event size changed %v x %v\n", t.Data1, t.Data2)
+					fmt.Printf("-- window size %v x %v\n", screenWidth, screenHeight)
+					doDraw = true
+				case sdl.WINDOWEVENT_RESIZED:
+					screenWidth, screenHeight = window.GetSize()
 					fmt.Printf("-- event resized %v x %v\n", t.Data1, t.Data2)
 					fmt.Printf("-- window size %v x %v\n", screenWidth, screenHeight)
 					doDraw = true
