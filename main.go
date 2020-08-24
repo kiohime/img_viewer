@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"math"
 	"os"
 	"path/filepath"
@@ -164,20 +165,62 @@ func SetFullscreen(x bool) {
 		mode = sdl.WINDOW_FULLSCREEN_DESKTOP
 	}
 	window.SetFullscreen(mode)
+}
 
+func ReplaceArgs(args []string) []string {
+	fmt.Println("ReplaceArgs")
+	ret := []string{args[0]}
+	file, err := ioutil.ReadFile("config.txt")
+	if err != nil {
+		fmt.Println("READFILE ERROR %v", err)
+		panic(err)
+	}
+	fileString := string(file)
+
+	// работает только с 1 аргументом!!!!!
+	if len(args) > 1 {
+		fileString = strings.ReplaceAll(fileString, "%1", args[1])
+	}
+	ret = append(ret, SplitNewline(fileString)...)
+	return ret
+}
+
+func SplitNewline(line string) []string {
+	fmt.Println("SplitNewline")
+	fmt.Printf("line is %q\n", line)
+	a := strings.Split(line, "\n")
+	// fmt.Println("a is ", a)
+	for i := range a {
+		a[i] = strings.TrimSuffix(a[i], "\r")
+	}
+	fmt.Printf("a is %q\n", a)
+	return a
+
+}
+
+func FindArgs(args []string) []string {
+	isReplaceArgs := true
+	for _, arg := range args[1:] {
+		if strings.HasPrefix(arg, "-") {
+			isReplaceArgs = false
+		}
+	}
+	if isReplaceArgs {
+		args = ReplaceArgs(args)
+		fmt.Println("switching to Default settings", args)
+	}
+
+	return ParseArgs(args)
 }
 
 func ParseArgs(args []string) []string {
 	ret := []string{}
-	// noFlags := true
 	doSort := false
 	maskList := []string{}
 	filePosName := ""
-	// isDefaultFilterMode := true
-	// es := 0
 	errors := []string{}
-	for i, arg := range args[1:] {
-		fmt.Println(args[i+1])
+	for _, arg := range args[1:] {
+		// fmt.Println("%%%%%%%%%%%%", arg)
 		if strings.HasPrefix(arg, "-") {
 			fmt.Println(arg, "is custom flag")
 			// filters = append(filters, arg)
@@ -629,10 +672,12 @@ func main() {
 	if !Setup() {
 		os.Exit(1)
 	}
+	// fmt.Println("init font")
 	InitFonts()
-
-	filelist = ParseArgs(os.Args)
+	// fmt.Println("filelist")
+	filelist = FindArgs(os.Args)
 	SetFullscreen(fullscreen)
+	// fmt.Println("zalivka")
 	patternZalivka = defaultZalivka
 	patternBg = defaultBg
 	CreateImage(getCurFile())

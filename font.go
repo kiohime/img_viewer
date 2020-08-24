@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/veandco/go-sdl2/sdl"
 	"github.com/veandco/go-sdl2/ttf"
 	"golang.org/x/image/font/gofont/goregular"
@@ -23,7 +21,6 @@ var (
 
 // InitFonts ...
 func InitFonts() {
-	fmt.Println("init font")
 	err := ttf.Init()
 	if err != nil {
 		panic(err)
