@@ -170,7 +170,8 @@ func SetFullscreen(x bool) {
 func ReplaceArgs(args []string) []string {
 	fmt.Println("ReplaceArgs")
 	ret := []string{args[0]}
-	file, err := ioutil.ReadFile("config.txt")
+
+	file, err := ioutil.ReadFile(filepath.Dir(args[0]) + string(filepath.Separator) + "config.txt")
 	if err != nil {
 		fmt.Println("READFILE ERROR %v", err)
 		panic(err)
