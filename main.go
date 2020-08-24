@@ -170,7 +170,6 @@ func SetFullscreen(x bool) {
 func ParseArgs(args []string) []string {
 	ret := []string{}
 	// noFlags := true
-	// CustomFlag := false
 	doSort := false
 	maskList := []string{}
 	filePosName := ""
@@ -179,8 +178,7 @@ func ParseArgs(args []string) []string {
 	errors := []string{}
 	for i, arg := range args[1:] {
 		fmt.Println(args[i+1])
-		customFlag := strings.HasPrefix(arg, "-")
-		if customFlag {
+		if strings.HasPrefix(arg, "-") {
 			fmt.Println(arg, "is custom flag")
 			// filters = append(filters, arg)
 			switch arg {
